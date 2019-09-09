@@ -2,6 +2,7 @@ import copy
 import enum
 import errno
 import logging
+from pathlib import Path
 import shlex
 import subprocess
 from subprocess import CalledProcessError
@@ -30,11 +31,10 @@ class Processes:
     Args:
         cmds: Command strings or sequences of command arguments to be chained together.
         stdout: How to capture stdout of the final process in the chain; can be
-            a string (filename) or file object, in which case the output is written
-            to that file; None, in which case `subprocess.PIPE` is used; True,
-            in which case output is captured to a buffer; or False, in which case
-            stdout is discarded. If a file, any existing file with the same name is
-            overwritten.
+            a string (filename), in which case the output is written to that file;
+            None, in which case `subprocess.PIPE` is used; True, in which case output
+            is captured to a buffer; or False, in which case stdout is discarded. If
+            a file, any existing file with the same name is overwritten.
         stderr: How to capture stderr of the final process in the chain (see
             `stdout` for details).
         capture_stderr: Whether to capture the contents of stderr of processes
@@ -49,16 +49,18 @@ class Processes:
     def __init__(
         self,
         cmds: Sequence[Union[str, Sequence[str]]],
-        stdout: Optional[Union[str, bool, IO]] = None,
-        stderr: Optional[Union[str, bool, IO]] = None,
+        stdout: Optional[Union[str, bool, Path]] = None,
+        stderr: Optional[Union[str, bool, Path]] = None,
         capture_stderr: bool = True,
         echo: bool = None,
         **popen_kwargs
     ):
         self.cmds = cmds
-        self._stdout = stdout
+        self._stdout_arg = stdout
+        self._stdout = None
         self._stdout_type = None
-        self._stderr = stderr
+        self._stderr_arg = stderr
+        self._stderr = None
         self._stderr_type = None
         self.capture_stderr = capture_stderr
         self._stderr_buffers = [] if capture_stderr else None
@@ -97,15 +99,17 @@ class Processes:
         return self._returncode
 
     def _init_stdout(self) -> Union[int, IO]:
-        self._stdout, self._stdout_type, retval = self._init_std(self._stdout)
+        self._stdout, self._stdout_type, retval = self._init_std(self._stdout_arg)
         return retval
 
     def _init_stderr(self) -> Union[int, IO]:
-        self._stderr, self._stderr_type, retval = self._init_std(self._stderr)
+        self._stderr, self._stderr_type, retval = self._init_std(self._stderr_arg)
         return retval
 
     @staticmethod
-    def _init_std(value) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
+    def _init_std(
+        value: Optional[Union[bool, str]]
+    ) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
         if value is None:
             return None, StdType.PIPE, subprocess.PIPE
 
@@ -115,8 +119,8 @@ class Processes:
         elif value is True:
             value = Processes._create_temp_outfile()
             std_type = StdType.BUFFER
-        elif isinstance(value, str):
-            value = open(value, "w")
+        elif isinstance(value, (str, Path)):
+            value = open(value, "wb")
             std_type = StdType.FILE
         return value, std_type, value
 
@@ -290,7 +294,7 @@ class Processes:
             raise RuntimeError("Cannot call block() after calling close()")
 
         last_proc = self._processes[-1]
-        try:
+        try:  # TODO: figure out how to test this
             out, err = (
                 b"" if std is None else std.strip()
                 for std in last_proc.communicate()
@@ -318,16 +322,29 @@ class Processes:
             True if processes were killed, else False.
         """
         if self.was_run and not self.done:
-            for i, proc in enumerate(self._processes):
-                try:
-                    proc.kill()
-                except OSError as oserr:
-                    if oserr.errno == errno.ESRCH:
-                        # Ignore - process has already died
+            try:
+                for i, proc in enumerate(self._processes):
+                    try:
+                        proc.kill()
+                    except OSError as oserr:  # TODO: figure out how to test this
+                        if oserr.errno == errno.ESRCH:
+                            # Ignore - process has already died
+                            pass
+                        LOG.exception(
+                            "Error killing running process command %s", self.cmds[i]
+                        )
+            finally:
+                if not self.closed:
+                    try:
+                        self.block()
+                    except CalledProcessError:
+                        # We expect this to happen when a process is killed
                         pass
-                    LOG.exception(
-                        "Error killing running process command %s", self.cmds[i]
-                    )
+                    except RuntimeError:  # TODO: figure out how to test this
+                        LOG.exception(
+                            "Error waiting for killed process(es) to end; any opened "
+                            "files were not closed"
+                        )
             return True
 
         return False
@@ -349,7 +366,7 @@ class Processes:
         if they are of type StdType.BUFFER.
         """
         def close_file(handle):
-            try:
+            try:  # TODO: figure out how to test
                 handle.close()
             except IOError:
                 LOG.exception("Error closing output file %s", handle.name)
@@ -359,15 +376,15 @@ class Processes:
             with open(handle.name, "rb") as inp:
                 return inp.read()
 
-        if self._stdout == StdType.FILE:
+        if self._stdout_type == StdType.FILE:
             close_file(self._stdout)
         elif self._stdout_type == StdType.BUFFER:
-            close_buffer(self._stdout)
+            self._out = close_buffer(self._stdout)
 
-        if self._stderr == StdType.FILE:
+        if self._stderr_type == StdType.FILE:
             close_file(self._stderr)
         elif self._stderr_type == StdType.BUFFER:
-            close_buffer(self._stderr)
+            self._err = close_buffer(self._stderr)
 
         if self.capture_stderr:
             self._stderr_bytes = [
@@ -412,7 +429,7 @@ class Processes:
         self.close()
 
 
-def run_cmd(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
+def run(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
     """
     Runs a single command as a subprocess.
 
@@ -425,10 +442,10 @@ def run_cmd(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
     Returns:
         A :class:`subby.Processes` object.
     """
-    return chain_cmds([cmd], **kwargs)
+    return chain([cmd], **kwargs)
 
 
-def chain_cmds(
+def chain(
     cmds: Sequence[Union[str, Sequence[str]]],
     stdout: str = None,
     shell: Union[str, bool] = False,
