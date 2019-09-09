@@ -1,4 +1,4 @@
-[![Travis CI](https://travis-ci.com/jdidion/subby.svg?branch=master)](https://travis-ci.com/jdidion/subby)
+[![Travis CI](https://travis-ci.org/jdidion/subby.svg?branch=master)](https://travis-ci.org/jdidion/subby)
 [![Code Coverage](https://codecov.io/gh/jdidion/subby/branch/master/graph/badge.svg)](https://codecov.io/gh/jdidion/subby)
 
 Subby is a small Python library with the goal of simplifying the use of subprocesses.
