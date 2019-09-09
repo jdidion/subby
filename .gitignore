@@ -1,0 +1,7 @@
+.coverage
+coverage.xml
+poetry.lock
+.pytest_cache
+dist/
+build/
+.benchmarks/

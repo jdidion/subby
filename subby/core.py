@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 import subprocess
-from subprocess import CalledProcessError
+from subprocess import CalledProcessError, TimeoutExpired
 import sys
 from typing import IO, Optional, Sequence, Tuple, Union, cast
 
@@ -319,7 +319,12 @@ class Processes:
 
         self._processes = procs
 
-    def block(self, close: bool = True, raise_on_error: bool = True):
+    def block(
+        self,
+        close: bool = True,
+        raise_on_error: bool = True,
+        timeout: Optional[int] = None
+    ):
         """
         Wait for all commands to finish.
 
@@ -327,6 +332,8 @@ class Processes:
             close: Whether to call `self.close()` after the processes complete.
             raise_on_error: Whether to raise a :class:`subprocess.CalledProcessError`
                 if the returncode was not 0.
+            timeout: Seconds to wait before killing the process; if None, process
+                will run until completed.
         """
         if not self.was_run:
             raise RuntimeError("Cannot call block() until after calling run()")
@@ -337,17 +344,18 @@ class Processes:
         try:  # TODO: figure out how to test this
             out, err = (
                 b"" if std is None else std.strip()
-                for std in last_proc.communicate()
+                for std in last_proc.communicate(timeout=timeout)
             )
             if self._stdout_type == StdType.PIPE:
                 self._out = out
             if self._stderr_type == StdType.PIPE:
                 self._err = err
         except ValueError:
-            LOG.error("Error reading from stdout/stderr")
-            pass
+            LOG.exception("Error reading from stdout/stderr")
+        except TimeoutExpired:
+            LOG.exception(f"Process timed out after {timeout} seconds")
 
-        if close:
+        if close and not self.closed:
             self._close_and_set_std()
 
         if raise_on_error:
@@ -385,6 +393,7 @@ class Processes:
                             "Error waiting for killed process(es) to end; any opened "
                             "files were not closed"
                         )
+
             return True
 
         return False
