@@ -5,3 +5,4 @@ poetry.lock
 dist/
 build/
 .benchmarks/
+**/__pycache__/
