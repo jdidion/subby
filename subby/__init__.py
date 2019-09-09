@@ -2,12 +2,14 @@ import copy
 import enum
 import errno
 import logging
+import os
 from pathlib import Path
 import shlex
 import subprocess
 from subprocess import CalledProcessError
+import sys
 import tempfile
-from typing import IO, Optional, Sequence, Tuple, Union
+from typing import IO, Optional, Sequence, Tuple, Union, cast
 
 LOG = logging.getLogger()
 DEFAULT_EXECUTABLE = "/bin/bash"
@@ -20,7 +22,8 @@ class StdType(enum.IntEnum):
     PIPE = 0
     FILE = 1
     BUFFER = 2
-    OTHER = 3
+    SYS = 3
+    OTHER = 4
 
 
 class Processes:
@@ -30,11 +33,17 @@ class Processes:
 
     Args:
         cmds: Command strings or sequences of command arguments to be chained together.
+        stdin: Standard input to pass to the first process in the chain; can be
+            a Path (filename), in which case the input is read from that file;
+            `None`, in which case no stdin is used; `StdType.SYS`, in which case
+            sys.stdin is used, or bytes, which will be passed to stdin.
         stdout: How to capture stdout of the final process in the chain; can be
-            a string (filename), in which case the output is written to that file;
-            None, in which case `subprocess.PIPE` is used; True, in which case output
-            is captured to a buffer; or False, in which case stdout is discarded. If
-            a file, any existing file with the same name is overwritten.
+            a Path (filename), in which case the output is written to that
+            file; None, in which case stdout is discarded; or a `StdType`:
+            `StdType.PIPE`, in which case `subprocess.PIPE` is used; `StdType.BUFFER`,
+            in which case output is captured to a buffer; or `StdType.SYS`, in which
+            case stdout is sent to `sys.stdout`. If a file, any existing file with the
+            same name is overwritten.
         stderr: How to capture stderr of the final process in the chain (see
             `stdout` for details).
         capture_stderr: Whether to capture the contents of stderr of processes
@@ -49,13 +58,17 @@ class Processes:
     def __init__(
         self,
         cmds: Sequence[Union[str, Sequence[str]]],
-        stdout: Optional[Union[str, bool, Path]] = None,
-        stderr: Optional[Union[str, bool, Path]] = None,
+        stdin: Optional[Union[bytes, Path, StdType]] = None,
+        stdout: Optional[Union[Path, StdType]] = StdType.PIPE,
+        stderr: Optional[Union[Path, StdType]] = StdType.PIPE,
         capture_stderr: bool = True,
         echo: bool = None,
         **popen_kwargs
     ):
         self.cmds = cmds
+        self._stdin_arg = stdin
+        self._stdin = None
+        self._stdin_type = None
         self._stdout_arg = stdout
         self._stdout = None
         self._stdout_type = None
@@ -98,31 +111,63 @@ class Processes:
                         break
         return self._returncode
 
+    def _init_stdin(self) -> Union[int, IO]:
+        self._stdin, self._stdin_type, retval = Processes._init_std(
+            self._stdin_arg,
+            sys.stdin,
+            False
+        )
+        return retval
+
     def _init_stdout(self) -> Union[int, IO]:
-        self._stdout, self._stdout_type, retval = self._init_std(self._stdout_arg)
+        self._stdout, self._stdout_type, retval = Processes._init_std(
+            self._stdout_arg,
+            sys.stdout,
+            True
+        )
         return retval
 
     def _init_stderr(self) -> Union[int, IO]:
-        self._stderr, self._stderr_type, retval = self._init_std(self._stderr_arg)
+        self._stderr, self._stderr_type, retval = Processes._init_std(
+            self._stderr_arg,
+            sys.stderr,
+            True
+        )
         return retval
 
     @staticmethod
     def _init_std(
-        value: Optional[Union[bool, str]]
+        value: Optional[Union[Path, StdType, bytes]],
+        sys_stream: IO,
+        is_output: bool = True
     ) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
-        if value is None:
-            return None, StdType.PIPE, subprocess.PIPE
+        """
 
+        """
         std_type = StdType.OTHER
-        if value is False:
-            value = None
-        elif value is True:
-            value = Processes._create_temp_outfile()
+        stream = None
+        retval = None
+        if isinstance(value, bytes):
+            # Put input in a tempfile
             std_type = StdType.BUFFER
-        elif isinstance(value, (str, Path)):
-            value = open(value, "wb")
+            stream = _create_and_open_tempfile("w+b")
+            stream.write(cast(bytes, value))
+            stream.seek(0)
+        elif isinstance(value, StdType):
+            std_type = cast(StdType, value)
+            if std_type is StdType.PIPE:
+                retval = subprocess.PIPE
+            elif std_type is StdType.BUFFER and is_output:
+                stream = _create_and_open_tempfile()
+            elif std_type is StdType.SYS:
+                stream = sys_stream
+            else:
+                raise ValueError(f"Invalid argument: {value}")
+        elif value is not None:
+            stream = open(value, "wb" if is_output else "rb")
             std_type = StdType.FILE
-        return value, std_type, value
+
+        return stream, std_type, retval or stream
 
     def _get_stderr_buffer(self) -> IO:
         """
@@ -132,16 +177,9 @@ class Processes:
             The opened file object.
         """
         if self.capture_stderr:
-            handle = self._create_temp_outfile()
+            handle = _create_and_open_tempfile()
             self._stderr_buffers.append(handle)
             return handle
-
-    @staticmethod
-    def _create_temp_outfile() -> IO:
-        """
-        Creates and returns a temporary output file object.
-        """
-        return open(tempfile.mkstemp()[1], "w")
 
     @property
     def output(self) -> bytes:
@@ -264,7 +302,9 @@ class Processes:
         for i, cmd in enumerate(self.cmds, 1):
             popen_kwargs = copy.copy(self.popen_kwargs)
             popen_kwargs.update(kwargs)
-            if procs:
+            if i == 1:
+                popen_kwargs["stdin"] = self._init_stdin()
+            elif procs:
                 popen_kwargs["stdin"] = procs[-1].stdout
             if i == num_commands:
                 popen_kwargs["stdout"] = self._init_stdout()
@@ -371,24 +411,40 @@ class Processes:
             except IOError:
                 LOG.exception("Error closing output file %s", handle.name)
 
-        def close_buffer(handle) -> bytes:
+        def remove_file(handle):
+            try:
+                os.unlink(handle.name)
+            except IOError:  # TODO: figure out how to test
+                LOG.exception("Error removing file %s", handle.name)
+
+        if self._stdin_type in {StdType.FILE, StdType.BUFFER}:
+            try:
+                close_file(self._stdin)
+            finally:
+                if self._stdin_type is StdType.BUFFER:
+                    remove_file(self._stdin)
+
+        def close_output_buffer(handle) -> bytes:
             close_file(handle)
-            with open(handle.name, "rb") as inp:
-                return inp.read()
+            try:
+                with open(handle.name, "rb") as inp:
+                    return inp.read()
+            finally:
+                remove_file(handle)
 
-        if self._stdout_type == StdType.FILE:
+        if self._stdout_type is StdType.FILE:
             close_file(self._stdout)
-        elif self._stdout_type == StdType.BUFFER:
-            self._out = close_buffer(self._stdout)
+        elif self._stdout_type is StdType.BUFFER:
+            self._out = close_output_buffer(self._stdout)
 
-        if self._stderr_type == StdType.FILE:
+        if self._stderr_type is StdType.FILE:
             close_file(self._stderr)
-        elif self._stderr_type == StdType.BUFFER:
-            self._err = close_buffer(self._stderr)
+        elif self._stderr_type is StdType.BUFFER:
+            self._err = close_output_buffer(self._stderr)
 
         if self.capture_stderr:
             self._stderr_bytes = [
-                close_buffer(buf) for buf in self._stderr_buffers
+                close_output_buffer(buf) for buf in self._stderr_buffers
             ]
             self._stderr_buffers = None
 
@@ -429,6 +485,13 @@ class Processes:
         self.close()
 
 
+def _create_and_open_tempfile(mode: str = "wb") -> IO:
+    """
+    Creates and returns a temporary output file object.
+    """
+    return open(tempfile.mkstemp()[1], mode)
+
+
 def run(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
     """
     Runs a single command as a subprocess.
@@ -447,7 +510,6 @@ def run(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
 
 def chain(
     cmds: Sequence[Union[str, Sequence[str]]],
-    stdout: str = None,
     shell: Union[str, bool] = False,
     block: bool = True,
     **kwargs
@@ -460,11 +522,6 @@ def chain(
             Input of type 'list' is recommended. When input is of type 'string',
             command is executed using the default shell (i.e. `shell` is set to `None`
             if it is `False`).
-        stdout: What to do with stdout of the last process in the chain. Can be a
-            string (filename) or file object, in which case the output is written to
-            that file; None, in which case `subprocess.PIPE` is used; True, in which
-            case output is captured to a buffer; or False, in which case stdout is
-            discarded.
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
             (which also implies shell=True). If None, the command is executed via the
@@ -485,7 +542,7 @@ def chain(
             example_cmd1 = ['dx', 'download', 'file-xxxx']
             example_cmd2 = ['gunzip']
             out_f = "somefilename.fasta"
-            chain_cmd([example_cmd1, example_cmd2], output_filename=out_f)
+            chain([example_cmd1, example_cmd2], stdout=out_f)
 
             This function will print and execute the following command:
             'dx download file-xxxx | gunzip > somefilename.fasta'
@@ -493,18 +550,18 @@ def chain(
         Usage 2: Pipe multiple commands together and return output
             example_cmd1 = ['gzip', 'file.txt']
             example_cmd2 = ['dx', 'upload', '-', '--brief']
-            file_id = chain_cmd([example_cmd1, example_cmd2], block=True).output
+            file_id = chain([example_cmd1, example_cmd2], block=True).output
 
             This function will print and execute the following command:
             'gzip file.txt | dx upload - --brief '
             and return the output.
 
         Usage 3: Run a single command with output to file
-            run_cmd('echo "hello world"', output_filename='test2.txt')
+            run('echo "hello world"', stdout='test2.txt')
             Note: This calls the run function instead of chain.
 
         Usage 4: A command failing mid-pipe should return CalledProcessedError
-            chain_cmd(
+            chain(
                 [['echo', 'hi:bye'], ['grep', 'blah'], ['cut', '-d', ':', '-f', '1']]
             )
             Traceback (most recent call last):
@@ -526,7 +583,6 @@ def chain(
 
     processes = Processes(
         cmds,
-        stdout=stdout,
         shell=(shell is not False),
         executable=executable,
         **kwargs

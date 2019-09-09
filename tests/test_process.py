@@ -6,6 +6,7 @@ import contextlib
 from pathlib import Path
 import tempfile
 import shutil
+import sys
 import time
 from typing import Iterable
 
@@ -102,7 +103,7 @@ def test_state_errors():
 
 
 def test_stderr_stdout():
-    p = subby.Processes([["echo", "hi"]], stdout=False, stderr=False)
+    p = subby.Processes([["echo", "hi"]], stdout=None, stderr=None)
     p.run(echo=True)
     p.block()
     assert p._stdout_type is subby.StdType.OTHER
@@ -114,7 +115,11 @@ def test_stderr_stdout():
     with pytest.raises(RuntimeError):
         p.error
 
-    p = subby.Processes([["echo", "hi"]], stdout=True, stderr=True)
+    p = subby.Processes(
+        [["echo", "hi"]],
+        stdout=subby.StdType.BUFFER,
+        stderr=subby.StdType.BUFFER
+    )
     p.run(echo=True)
     p.block(close=False)
     assert p._stdout_type is subby.StdType.BUFFER
@@ -129,7 +134,11 @@ def test_stderr_stdout():
     assert p.output == b"hi\n"
     assert p.error == b""
 
-    p = subby.Processes([["echo", "hi"]], stdout=True, stderr=True)
+    p = subby.Processes(
+        [["echo", "hi"]],
+        stdout=subby.StdType.BUFFER,
+        stderr=subby.StdType.BUFFER
+    )
     p.run(echo=True)
     p.block()
     assert p._stdout_type is subby.StdType.BUFFER
@@ -138,6 +147,33 @@ def test_stderr_stdout():
     assert p.stderr_stream is not None
     assert p.output == b"hi\n"
     assert p.error == b""
+
+    with pytest.raises(ValueError):
+        p = subby.Processes([["echo", "hi"]], stdout=subby.StdType.FILE)
+        p.run()
+
+
+def test_stdin():
+    p = subby.Processes([["grep", "hi"]], stdin=b"hi")
+    p.run()
+    p.block()
+
+    # We have to use a tempfile to mock stdin - an io.BytesIO doesn't work
+    # because the fileno method is called
+    with isolated_dir() as d:
+        mock_stdin = d / "stdin"
+        with open(mock_stdin, "wb") as out:
+            out.write(b"hi")
+        cur_stdin = sys.stdin
+        try:
+            with open(mock_stdin, "rb") as inp:
+                sys.stdin = inp
+                p = subby.Processes([["grep", "hi"]], stdin=subby.StdType.SYS)
+                p.run()
+                p.block()
+                assert p.output == b"hi"
+        finally:
+            sys.stdin = cur_stdin
 
 
 def test_files():
