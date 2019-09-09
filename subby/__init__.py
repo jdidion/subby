@@ -509,7 +509,7 @@ def run(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
 
 
 def chain(
-    cmds: Sequence[Union[str, Sequence[str]]],
+    cmds: Union[str, Sequence[Union[str, Sequence[str]]]],
     shell: Union[str, bool] = False,
     block: bool = True,
     **kwargs
@@ -518,10 +518,10 @@ def chain(
     Runs several commands that pipe to each other in a python-aware way.
 
     Args:
-        cmds: Any number of commands (lists or strings) to pipe together.
-            Input of type 'list' is recommended. When input is of type 'string',
-            command is executed using the default shell (i.e. `shell` is set to `None`
-            if it is `False`).
+        cmds: Any number of commands (lists or strings) to pipe together. May
+            also be a string, which will be split on the pipe ('|') character to
+            get the component commands (not recommended except for completely
+            non-ambiguous command strings).
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
             (which also implies shell=True). If None, the command is executed via the
@@ -569,17 +569,20 @@ def chain(
             CalledProcessError: Command '['grep', 'blah']' returned non-zero
                 exit status 1
     """
+    if isinstance(cmds, str):
+        cmds = [c.strip() for c in cmds.split("|")]
+
+    if shell is False:
+        cmds = command_strings_to_lists(cmds)
+    else:
+        cmds = command_lists_to_strings(cmds)
+
     if shell is True:
         executable = DEFAULT_EXECUTABLE
     elif isinstance(shell, str):
         executable = shell
     else:
         executable = None
-
-    if shell is False:
-        cmds = command_strings_to_lists(cmds)
-    else:
-        cmds = command_lists_to_strings(cmds)
 
     processes = Processes(
         cmds,

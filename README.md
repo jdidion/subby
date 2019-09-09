@@ -17,4 +17,6 @@ Subby's primary interface is the `chain` function. It takes a list of commands a
 ```python
 import subby
 
-p = subby.chain("grep foo | wc -l", stdin=True)
+p = subby.chain("grep foo | wc -l", stdin=b"foo\nbar")
+assert p.output == b"1"
+```

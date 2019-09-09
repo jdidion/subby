@@ -239,3 +239,8 @@ def test_kill():
         pass
     assert p.closed
     assert p.returncode != 0
+
+
+def test_readme_examples():
+    p = subby.chain("grep foo | wc -l", stdin=b"foo\nbar")
+    assert p.output == b"1"
