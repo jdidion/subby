@@ -6,6 +6,7 @@ import contextlib
 from pathlib import Path
 import tempfile
 import shutil
+import subprocess
 import sys
 import time
 from typing import Iterable
@@ -71,13 +72,13 @@ def test_shell():
     try:
         subby.run("exit 2", shell="/bin/sh")
         raise AssertionError("Expected error")
-    except subby.CalledProcessError as err:
+    except subprocess.CalledProcessError as err:
         assert err.returncode == 2
 
     try:
         subby.run("exit 2", shell=True)
         raise AssertionError("Expected error")
-    except subby.CalledProcessError as err:
+    except subprocess.CalledProcessError as err:
         assert err.returncode == 2
 
 
@@ -218,7 +219,7 @@ def test_rc():
     try:
         p.block()
         raise AssertionError("Expected a CalledProcessError")
-    except subby.CalledProcessError as err:
+    except subprocess.CalledProcessError as err:
         assert err.returncode == 1
 
 
