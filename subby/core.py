@@ -50,6 +50,8 @@ class Processes:
             other than the final process.
         echo: Whether to echo commands to the logger before running the commands.
             Can be overridden by the `run()` method's `echo` parameter.
+        allowed_return_codes: Sequence of return codes that signal successful
+            completion; [0] by default.
         popen_kwargs: Keyword arguments to pass to Popen constructors.
 
     Todo:
