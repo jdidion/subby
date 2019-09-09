@@ -1,5 +1,5 @@
 module = subby
-version = `dunamai from git --no-metadata --style semver`
+version = 0.1.1
 repo = jdidion/$(module)
 desc = Release $(version)
 tests = tests

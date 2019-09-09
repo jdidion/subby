@@ -6,9 +6,11 @@ python:
   - "3.7"
 before_install:
 - pip install --upgrade pip wheel
-- pip install poetry
+- pip install poetry codecov
 install:
 - poetry install
 - make install
 script:
 - make test
+after_success:
+- codecov
