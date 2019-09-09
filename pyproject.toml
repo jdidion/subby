@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "subby"
+version = "0.1.0"
+description = "Subprocesses simplified"
+authors = ["jdidion <github@didion.net>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.6"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.1"
+coverage = "^4.5"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
