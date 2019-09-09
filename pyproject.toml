@@ -2,7 +2,6 @@
 name = "subby"
 version = "0.1.0"
 description = "Subprocesses simplified"
-authors = ["jdidion <github@didion.net>"]
 license = "Apache-2.0"
 authors = ["John Didion <github@didion.net>"]
 readme = "README.md"
