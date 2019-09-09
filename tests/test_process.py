@@ -29,38 +29,37 @@ def isolated_dir(*args, **kwargs) -> Iterable[Path]:
 
 def test_run():
     with isolated_dir():
-        subby.run(
-            "echo -n 'foo'",
-            stdout="foo.txt",
-            echo=True,
-            block=True
-        )
-        assert os.path.exists("foo.txt")
-        assert b"foo" == subby.run("cat foo.txt", block=True).output
-
-
-def test_chain():
-    with isolated_dir():
-        p = subby.chain(
+        p = subby.run(
             ["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=True
         )
         assert p.done and p.closed
-        assert b"foo" == subby.chain(
+        assert b"foo" == subby.run(
                 ["gunzip -c foo.txt.gz", "cat"], block=True
             ).output
 
 
-def test_chain_noblock():
+def test_run_noblock():
     with isolated_dir():
-        p = subby.chain(
+        p = subby.run(
             ["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=False
         )
         assert not p.done
         p.block()
         assert p.done and p.closed
-        assert b"foo" == subby.chain(
+        assert b"foo" == subby.run(
                 ["gunzip -c foo.txt.gz", "cat"], block=True
             ).output
+
+
+def test_run_str_command():
+    with isolated_dir():
+        p = subby.run(
+            "echo -n 'foo' | gzip", stdout="foo.txt.gz", block=True
+        )
+        assert p.done and p.closed
+        assert b"foo" == subby.run(
+            "gunzip -c foo.txt.gz | cat", block=True
+        ).output
 
 
 def test_shell():
@@ -242,5 +241,18 @@ def test_kill():
 
 
 def test_readme_examples():
-    p = subby.chain("grep foo | wc -l", stdin=b"foo\nbar")
-    assert p.output == b"1"
+    # We can pass input to the stdin of the command as bytes
+    input_bytes = b"foo\nbar"
+
+    # The following three commands are equivalent; each returns a
+    # `subby.Processes` object that can be used to inspect and control
+    # the process(es).
+    p1 = subby.run([["grep", "foo"], ["wc", "-l"]], stdin=input_bytes)
+    p2 = subby.run(("grep foo", "wc -l"), stdin=input_bytes)
+    p3 = subby.run("grep foo | wc -l", stdin=input_bytes)
+
+    # The `done` property tells us whether the processes have finished
+    assert p1.done and p2.done and p3.done
+
+    # The `output` property provides the output of the command
+    assert p1.output == p2.output == p3.output == b"1"

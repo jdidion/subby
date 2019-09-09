@@ -492,36 +492,19 @@ def _create_and_open_tempfile(mode: str = "wb") -> IO:
     return open(tempfile.mkstemp()[1], mode)
 
 
-def run(cmd: Union[str, Sequence[str]], **kwargs) -> Processes:
-    """
-    Runs a single command as a subprocess.
-
-    This is simply a convenience method for `chain([cmd], **kwargs)`.
-
-    Args:
-        cmd: The command string, or command arguments as a list.
-        **kwargs: Additional keyword arguments to pass to `chain_cmds`.
-
-    Returns:
-        A :class:`subby.Processes` object.
-    """
-    return chain([cmd], **kwargs)
-
-
-def chain(
+def run(
     cmds: Union[str, Sequence[Union[str, Sequence[str]]]],
     shell: Union[str, bool] = False,
     block: bool = True,
     **kwargs
-):
+) -> Processes:
     """
     Runs several commands that pipe to each other in a python-aware way.
 
     Args:
-        cmds: Any number of commands (lists or strings) to pipe together. May
-            also be a string, which will be split on the pipe ('|') character to
-            get the component commands (not recommended except for completely
-            non-ambiguous command strings).
+        cmds: Any number of commands (lists or strings) to pipe together. This may be
+            a string, in which case it will be split on the pipe ('|') character to
+            get the component commands.
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
             (which also implies shell=True). If None, the command is executed via the
