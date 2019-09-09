@@ -4,6 +4,12 @@ version = "0.1.0"
 description = "Subprocesses simplified"
 authors = ["jdidion <github@didion.net>"]
 license = "Apache-2.0"
+authors = ["John Didion <github@didion.net>"]
+readme = "README.md"
+homepage = "https://github.com/jdidion/subby"
+repository = "https://github.com/jdidion/subby.git"
+classifiers = ["Development Status :: 4 - Beta"]
+include = ["CHANGES.md"]
 
 [tool.poetry.dependencies]
 python = "^3.6"
