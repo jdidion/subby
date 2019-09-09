@@ -63,6 +63,7 @@ class Processes:
         stderr: Optional[Union[Path, StdType]] = StdType.PIPE,
         capture_stderr: bool = True,
         echo: bool = None,
+        allowed_return_codes: Sequence[int] = (0,),
         **popen_kwargs
     ):
         self.cmds = cmds
@@ -80,6 +81,7 @@ class Processes:
         self._stderr_bytes = None
         self._closed = False
         self.echo = echo
+        self.allowed_return_codes = set(allowed_return_codes)
         self.popen_kwargs = popen_kwargs
         self._processes = None
         self._output_handle = None
@@ -101,7 +103,10 @@ class Processes:
             # Note that if any process other than the last has a return code of
             # None, we ignore it.
             self._returncode = self._processes[-1].poll()
-            if self._returncode == 0 and len(self._processes) > 1:
+            if (
+                self._returncode in self.allowed_return_codes and
+                len(self._processes) > 1
+            ):
                 # The last process finished running without error, but check all
                 # the other processes for an error.
                 for proc in reversed(self._processes[-2::-1]):
@@ -267,9 +272,10 @@ class Processes:
     @property
     def ok(self) -> bool:
         """
-        Whether the commands completed successfully, i.e. all had `returncode == 0`.
+        Whether the commands completed successfully, i.e. all had an allowed
+        returncode.
         """
-        return self.returncode == 0
+        return self.returncode in self.allowed_return_codes
 
     @property
     def closed(self) -> bool:

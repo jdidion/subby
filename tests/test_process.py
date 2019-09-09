@@ -257,3 +257,15 @@ def test_readme_examples():
 
     # The `output` property provides the output of the command
     assert p1.output == p2.output == p3.output == b"1"
+
+
+def test_allowed_returncodes():
+    with pytest.raises(subprocess.CalledProcessError):
+        # This raises an exception because grep has a returncode of 1
+        # when no lines match
+        subby.run("echo foo | grep -c bar")
+
+    assert subby.run(
+        "echo foo | grep -c bar",
+        allowed_return_codes=(0, 1)
+    ).output == b"0"
