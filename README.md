@@ -1,9 +1,7 @@
 [![Travis CI](https://travis-ci.org/jdidion/subby.svg?branch=master)](https://travis-ci.org/jdidion/subby)
 [![Code Coverage](https://codecov.io/gh/jdidion/subby/branch/master/graph/badge.svg)](https://codecov.io/gh/jdidion/subby)
 
-Subby is a small Python library with the goal of simplifying the use of subprocesses.
-
-Subby was inspired by [delegator.py](https://github.com/amitt001/delegator.py), but it adds a few additional features and excludes others (e.g. no `pexpect` support). Subby was originally written as part of the [dxpy.sugar](https://github.com/dnanexus/dx-toolkit/tree/SCI-1321_dx_sugar/src/python/dxpy/sugar) package, but because it is (hopefully) useful more generally, it is being made available as a separate package.
+Subby is a small Python library with the goal of simplifying the use of subprocesses. Subby is similar to [delegator.py](https://github.com/amitt001/delegator.py), but it adds a few additional features and excludes others (e.g. no `pexpect` support).
 
 ## Requirements
 
@@ -81,6 +79,13 @@ Subby supports several different types of arguments for stdin, stdout, and stder
 
 By default, the stderr streams of all processes in a chain are captured (you can disable this by passing `capture_stderr=False` to `run()`).
 
+```python
+import subby
+p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr")
+assert p.output == b"hi"
+assert p.get_all_stderr() == [b"", b"hi", b"hi"]
+```
+
 ### Logging
 
 By default, all executed commands are logged (with loglevel INFO). You can disable this behavior by passing `echo=False` to `run()`.
@@ -100,3 +105,12 @@ import subby
 subby.run("echo foo | grep bar")  # Raises CalledProcessError
 subby.run("echo foo | grep bar", allowed_return_codes=(0, 1))
 ```
+## Contributing
+
+Subby is considered to be largely feature-complete, but if you find a bug or have a suggestion for improvement, please submit an issue (or even better, a pull request).
+
+## Acknowledgements
+
+Subby was inspired by [delegator.py](https://github.com/amitt001/delegator.py).
+
+Subby was originally written as part of the [dxpy.sugar](https://github.com/dnanexus/dx-toolkit/tree/SCI-1321_dx_sugar/src/python/dxpy/sugar) package, but because it is (hopefully) useful more generally, it is being made available as a separate package. @Damien-Black and @msimbirsky contributed code and reviews.

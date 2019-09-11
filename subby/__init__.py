@@ -82,10 +82,7 @@ def run(
         executable = None
 
     processes = Processes(
-        cmds,
-        shell=(shell is not False),
-        executable=executable,
-        **kwargs
+        cmds, shell=(shell is not False), executable=executable, **kwargs
     )
 
     if block:

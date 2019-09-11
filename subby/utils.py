@@ -35,10 +35,7 @@ def command_strings_to_lists(
     Returns:
         A sequence of command argument sequences.
     """
-    return [
-        shlex.split(cmd)if isinstance(cmd, str) else cmd
-        for cmd in cmds
-    ]
+    return [shlex.split(cmd) if isinstance(cmd, str) else cmd for cmd in cmds]
 
 
 def command_lists_to_strings(
@@ -53,7 +50,4 @@ def command_lists_to_strings(
     Returns:
         A sequence of command strings.
     """
-    return [
-        quote_args(cmd) if not isinstance(cmd, str) else cmd
-        for cmd in cmds
-    ]
+    return [quote_args(cmd) if not isinstance(cmd, str) else cmd for cmd in cmds]

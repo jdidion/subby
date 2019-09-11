@@ -1,5 +1,6 @@
 import logging
 import os
+
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 
 import contextlib
@@ -30,37 +31,25 @@ def isolated_dir(*args, **kwargs) -> Iterable[Path]:
 
 def test_run():
     with isolated_dir():
-        p = subby.run(
-            ["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=True
-        )
+        p = subby.run(["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=True)
         assert p.done and p.closed
-        assert b"foo" == subby.run(
-                ["gunzip -c foo.txt.gz", "cat"], block=True
-            ).output
+        assert b"foo" == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True).output
 
 
 def test_run_noblock():
     with isolated_dir():
-        p = subby.run(
-            ["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=False
-        )
+        p = subby.run(["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=False)
         assert not p.done
         p.block()
         assert p.done and p.closed
-        assert b"foo" == subby.run(
-                ["gunzip -c foo.txt.gz", "cat"], block=True
-            ).output
+        assert b"foo" == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True).output
 
 
 def test_run_str_command():
     with isolated_dir():
-        p = subby.run(
-            "echo -n 'foo' | gzip", stdout="foo.txt.gz", block=True
-        )
+        p = subby.run("echo -n 'foo' | gzip", stdout="foo.txt.gz", block=True)
         assert p.done and p.closed
-        assert b"foo" == subby.run(
-            "gunzip -c foo.txt.gz | cat", block=True
-        ).output
+        assert b"foo" == subby.run("gunzip -c foo.txt.gz | cat", block=True).output
 
 
 def test_shell():
@@ -116,9 +105,7 @@ def test_stderr_stdout():
         p.error
 
     p = subby.Processes(
-        [["echo", "hi"]],
-        stdout=subby.StdType.BUFFER,
-        stderr=subby.StdType.BUFFER
+        [["echo", "hi"]], stdout=subby.StdType.BUFFER, stderr=subby.StdType.BUFFER
     )
     p.run(echo=True)
     p.block(close=False)
@@ -135,9 +122,7 @@ def test_stderr_stdout():
     assert p.error == b""
 
     p = subby.Processes(
-        [["echo", "hi"]],
-        stdout=subby.StdType.BUFFER,
-        stderr=subby.StdType.BUFFER
+        [["echo", "hi"]], stdout=subby.StdType.BUFFER, stderr=subby.StdType.BUFFER
     )
     p.run(echo=True)
     p.block()
@@ -265,10 +250,9 @@ def test_allowed_returncodes():
         # when no lines match
         subby.run("echo foo | grep -c bar")
 
-    assert subby.run(
-        "echo foo | grep -c bar",
-        allowed_return_codes=(0, 1)
-    ).output == b"0"
+    assert (
+        subby.run("echo foo | grep -c bar", allowed_return_codes=(0, 1)).output == b"0"
+    )
 
 
 def test_get_all_stderr():

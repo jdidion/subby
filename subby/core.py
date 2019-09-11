@@ -19,6 +19,7 @@ class StdType(enum.IntEnum):
     """
     stdout/stderr types
     """
+
     PIPE = 0
     FILE = 1
     BUFFER = 2
@@ -57,6 +58,7 @@ class Processes:
     Todo:
         Add ability to send input to stdin of first process.
     """
+
     def __init__(
         self,
         cmds: Sequence[Union[str, Sequence[str]]],
@@ -66,7 +68,7 @@ class Processes:
         capture_stderr: bool = True,
         echo: bool = None,
         allowed_return_codes: Sequence[int] = (0,),
-        **popen_kwargs
+        **popen_kwargs,
     ):
         self.cmds = cmds
         self._stdin_arg = stdin
@@ -106,8 +108,8 @@ class Processes:
             # None, we ignore it.
             self._returncode = self._processes[-1].poll()
             if (
-                self._returncode in self.allowed_return_codes and
-                len(self._processes) > 1
+                self._returncode in self.allowed_return_codes
+                and len(self._processes) > 1
             ):
                 # The last process finished running without error, but check all
                 # the other processes for an error.
@@ -120,25 +122,19 @@ class Processes:
 
     def _init_stdin(self) -> Union[int, IO]:
         self._stdin, self._stdin_type, retval = Processes._init_std(
-            self._stdin_arg,
-            sys.stdin,
-            False
+            self._stdin_arg, sys.stdin, False
         )
         return retval
 
     def _init_stdout(self) -> Union[int, IO]:
         self._stdout, self._stdout_type, retval = Processes._init_std(
-            self._stdout_arg,
-            sys.stdout,
-            True
+            self._stdout_arg, sys.stdout, True
         )
         return retval
 
     def _init_stderr(self) -> Union[int, IO]:
         self._stderr, self._stderr_type, retval = Processes._init_std(
-            self._stderr_arg,
-            sys.stderr,
-            True
+            self._stderr_arg, sys.stderr, True
         )
         return retval
 
@@ -146,7 +142,7 @@ class Processes:
     def _init_std(
         value: Optional[Union[Path, StdType, bytes]],
         sys_stream: IO,
-        is_output: bool = True
+        is_output: bool = True,
     ) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
         """
 
@@ -331,7 +327,7 @@ class Processes:
         self,
         close: bool = True,
         raise_on_error: bool = True,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
     ):
         """
         Wait for all commands to finish.
@@ -422,6 +418,7 @@ class Processes:
         Close any open files and set the values of `self._out` and `self._err`
         if they are of type StdType.BUFFER.
         """
+
         def close_file(handle):
             try:  # TODO: figure out how to test
                 handle.close()
@@ -479,9 +476,7 @@ class Processes:
             msg = "stderr from executed commands:\n{}".format(
                 b"\n".join(self.get_all_stderr())
             )
-            raise CalledProcessError(
-                self.returncode, str(self), output=msg
-            )
+            raise CalledProcessError(self.returncode, str(self), output=msg)
 
     def __str__(self) -> str:
         cmd_str = " | ".join(command_lists_to_strings(self.cmds))
