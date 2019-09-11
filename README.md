@@ -113,4 +113,4 @@ Subby is considered to be largely feature-complete, but if you find a bug or hav
 
 Subby was inspired by [delegator.py](https://github.com/amitt001/delegator.py).
 
-Subby was originally written as part of the [dxpy.sugar](https://github.com/dnanexus/dx-toolkit/tree/SCI-1321_dx_sugar/src/python/dxpy/sugar) package, but because it is (hopefully) useful more generally, it is being made available as a separate package. @Damien-Black and @msimbirsky contributed code and reviews.
+Subby was originally written as part of the [dxpy.sugar](https://github.com/dnanexus/dx-toolkit/tree/SCI-1321_dx_sugar/src/python/dxpy/sugar) package, but because it is (hopefully) useful more generally, it is being made available as a separate package. [@Damien-Black](https://github.com/@Damien-Black) and [@msimbirsky](https://github.com/msimbirsky) contributed code and reviews.
