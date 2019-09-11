@@ -1,5 +1,5 @@
 module = subby
-version = 0.1.2
+version = 0.1.3
 repo = jdidion/$(module)
 desc = Release $(version)
 tests = tests

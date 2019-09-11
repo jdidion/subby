@@ -1,5 +1,10 @@
 # Changes
 
+## 0.1.3 (dev)
+
+* Added tests
+* Blackened code
+
 ## 0.1.2
 
 * Add ability to specify alternative allowed returncodes
