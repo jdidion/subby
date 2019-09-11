@@ -37,6 +37,8 @@ assert p1.done and p2.done and p3.done
 assert p1.output == p2.output == p3.output == b"1"
 ```
 
+### Non-blocking processes
+
 By default, the `run` function blocks until the processes are finshed running. This behavior can be changed by passing `block=False`, in which case, the caller is responsible for checking the status and/or calling the `Processes.block()` method manually.
 
 ```python
@@ -66,11 +68,35 @@ if not p.ok:
     print(f"The command failed: stderr={p.error}")
 ```
 
+### stdin/stdout/stderr
+
 Subby supports several different types of arguments for stdin, stdout, and stderr:
 
-* A file: specified as a `pathlib.Path`; for stdin, the content is read from the file, whereas for stdout/stderr the content is written to the file (and is thus not available via the `output`/`error` properties).-->
+* A file: specified as a `pathlib.Path`; for stdin, the content is read from the file, whereas for stdout/stderr the content is written to the file (and is thus not available via the `output`/`error` properties).
 * A bytes string: for stdin, the bytes are written to a temporary file, which is passed to the process stdin.
 * One of the values provided by the `StdType` enumeration:
     * PIPE: for stdout/stderr, `subprocess.PIPE` is used, giving the caller direct access to the process stdout/stderr streams.
     * BUFFER: for stdout/stderr, a temporary file is used, and the contents are made available via the `output`/`error` properties after the process completes.
     * SYS: stdin/stdout/stderr is passed through from the main process (i.e. the `sys.stdin/sys.stdout/sys.stderr` streams).
+
+By default, the stderr streams of all processes in a chain are captured (you can disable this by passing `capture_stderr=False` to `run()`).
+
+### Logging
+
+By default, all executed commands are logged (with loglevel INFO). You can disable this behavior by passing `echo=False` to `run()`.
+
+```python
+import subby
+subby.run("touch foo")  # Echoes "touch foo" to the log with level INFO
+subby.run("login -p mypassword", echo=False)  # Does not echo mypassword
+```
+
+### Return codes
+
+By default, Subby treats a return code of `0` as success and all other return codes as failure. In some cases, this is not the desired behavior. A well-known example is `grep`, which has a returncode of `1` when no lines are matched. To ignore additional return codes, set the `allowed_return_codes` keyword argument to `run()`.
+
+```python
+import subby
+subby.run("echo foo | grep bar")  # Raises CalledProcessError
+subby.run("echo foo | grep bar", allowed_return_codes=(0, 1))
+```

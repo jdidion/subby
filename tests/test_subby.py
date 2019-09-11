@@ -269,3 +269,11 @@ def test_allowed_returncodes():
         "echo foo | grep -c bar",
         allowed_return_codes=(0, 1)
     ).output == b"0"
+
+
+def test_get_all_stderr():
+    # This command should write to stderr of the second and
+    # third commands, and stdout of the third command
+    p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr")
+    assert p.output == b"hi"
+    assert p.get_all_stderr() == [b"", b"hi", b"hi"]
