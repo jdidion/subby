@@ -6,12 +6,12 @@ from subby import utils
 DEFAULT_EXECUTABLE = "/bin/bash"
 
 
-def sub(cmd: str, **kwargs) -> str:
+def sub(cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs) -> str:
     """
     Convenience method, equivalent to run(cmd, mode=str, block=True, **kwargs).
 
     Args:
-        cmd: The command to run
+        cmds: The command(s) to run
         kwargs: Additional kwargs passed to `run()`
 
     Returns:
@@ -21,7 +21,7 @@ def sub(cmd: str, **kwargs) -> str:
         raise ValueError("Must call sub() with block=True")
     if not kwargs.get("mode", str) is str:
         raise ValueError("Must call sub() with mode=str")
-    p = run(cmd, **kwargs)
+    p = run(cmds, **kwargs)
     return p.output
 
 
