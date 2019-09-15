@@ -64,6 +64,9 @@ def test_run_noblock(mode, expected):
             mode=mode
         )
         assert not p.done
+        assert p.stdin_type is subby.StdType.OTHER
+        assert p.stdout_type is subby.StdType.FILE
+        assert p.stderr_type is subby.StdType.PIPE
         p.block()
         assert p.done and p.closed
         assert expected == subby.run(
@@ -163,6 +166,12 @@ def test_stderr_stdout(mode, expected_stdout, expected_stderr):
         stderr=subby.StdType.BUFFER,
         mode=mode
     )
+    with pytest.raises(RuntimeError):
+        p.stdin_type
+    with pytest.raises(RuntimeError):
+        p.stdout_type
+    with pytest.raises(RuntimeError):
+        p.stderr_type
     p.run(echo=True)
     p.block(close=False)
     assert p._stdout_type is subby.StdType.BUFFER

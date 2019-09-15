@@ -1,4 +1,4 @@
-from typing import Sequence, Type, Union
+from typing import Optional, Sequence, Type, Union
 
 from subby.core import Mode, StdType, Processes
 from subby import utils
@@ -6,7 +6,9 @@ from subby import utils
 DEFAULT_EXECUTABLE = "/bin/bash"
 
 
-def sub(cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs) -> str:
+def sub(
+    cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs
+) -> Optional[str]:
     """
     Convenience method, equivalent to run(cmd, mode=str, block=True, **kwargs).
 
@@ -15,14 +17,15 @@ def sub(cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs) -> str:
         kwargs: Additional kwargs passed to `run()`
 
     Returns:
-        Tuple (stdout, stderr)
+        The process stdout (if type is PIPE or BUFFER) else None.
     """
     if not kwargs.get("block", True):
         raise ValueError("Must call sub() with block=True")
     if not kwargs.get("mode", str) is str:
         raise ValueError("Must call sub() with mode=str")
     p = run(cmds, **kwargs)
-    return p.output
+    if p.stdout_type in {StdType.BUFFER, StdType.PIPE}:
+        return p.output
 
 
 def run(

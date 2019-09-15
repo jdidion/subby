@@ -229,7 +229,7 @@ class Processes(Generic[Mode]):
         Only available if `self.closed is True` and `self._stdout_type in
         {StdType.PIPE, StdType.BUFFER}`.
         """
-        if not (self.closed and self._stdout_type in {StdType.PIPE, StdType.BUFFER}):
+        if not (self.closed and self.stdout_type in {StdType.PIPE, StdType.BUFFER}):
             raise RuntimeError(
                 "'output' is only available for closed processes using a pipe or "
                 "buffer for stdout."
@@ -243,12 +243,24 @@ class Processes(Generic[Mode]):
         Only available if `self.closed is True` and `self._stderr_type in
         {StdType.PIPE, StdType.BUFFER}`.
         """
-        if not (self.closed and self._stderr_type in {StdType.PIPE, StdType.BUFFER}):
+        if not (self.closed and self.stderr_type in {StdType.PIPE, StdType.BUFFER}):
             raise RuntimeError(
                 "'error' is only available for closed processes using a pipe or "
                 "buffer for stderr."
             )
         return self._err
+
+    @property
+    def stdin_type(self) -> StdType:
+        if self._stdin_type is None:
+            raise RuntimeError("Cannot access 'stdin_type' until after calling 'run'.")
+        return self._stdin_type
+
+    @property
+    def stdout_type(self) -> StdType:
+        if self._stdout_type is None:
+            raise RuntimeError("Cannot access 'stdout_type' until after calling 'run'.")
+        return self._stdout_type
 
     @property
     def stdout_stream(self) -> IO:
@@ -258,6 +270,12 @@ class Processes(Generic[Mode]):
         if not self.was_run:
             raise RuntimeError("Cannot access 'stdout' until after calling 'run'.")
         return self._stdout or self._processes[-1].stdout
+
+    @property
+    def stderr_type(self) -> StdType:
+        if self._stdout_type is None:
+            raise RuntimeError("Cannot access 'stderr_type' until after calling 'run'.")
+        return self._stderr_type
 
     @property
     def stderr_stream(self) -> IO:

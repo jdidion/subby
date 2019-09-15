@@ -1,5 +1,9 @@
 # Changes
 
+## 0.1.5 (2019.09.15)
+
+* Bugfixes
+
 ## 0.1.4 (2019.09.15)
 
 * Change `sub` to take either a command or sequence of commands
