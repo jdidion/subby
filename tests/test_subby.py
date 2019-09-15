@@ -1,20 +1,20 @@
+import contextlib
 import logging
 import os
-
-logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
-
-import contextlib
 from pathlib import Path
-import tempfile
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Iterable
 
 import pytest
 
 import subby
+
+
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 
 
 @contextlib.contextmanager
@@ -29,27 +29,64 @@ def isolated_dir(*args, **kwargs) -> Iterable[Path]:
         shutil.rmtree(d)
 
 
-def test_run():
+@pytest.mark.parametrize("mode,expected", [(bytes, b"foo"), (str, "foo")])
+def test_run(mode, expected):
     with isolated_dir():
-        p = subby.run(["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=True)
+        p = subby.run(
+            ["echo -n 'foo'", "gzip"],
+            stdout=Path("foo.txt.gz"),
+            block=True,
+            mode=mode
+        )
         assert p.done and p.closed
-        assert b"foo" == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True).output
+        assert expected == subby.run(
+            ["gunzip -c foo.txt.gz", "cat"],
+            block=True,
+            mode=mode
+        ).output
 
 
-def test_run_noblock():
+@pytest.mark.parametrize("mode,expected", [(bytes, b"foo"), (str, "foo")])
+def test_run_noblock(mode, expected):
     with isolated_dir():
-        p = subby.run(["echo -n 'foo'", "gzip"], stdout="foo.txt.gz", block=False)
+        p = subby.run(
+            ["echo -n 'foo'", "gzip"],
+            stdout=Path("foo.txt.gz"),
+            block=False,
+            mode=mode
+        )
         assert not p.done
         p.block()
         assert p.done and p.closed
-        assert b"foo" == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True).output
+        assert expected == subby.run(
+            ["gunzip -c foo.txt.gz", "cat"],
+            block=True,
+            mode=mode
+        ).output
 
 
-def test_run_str_command():
+def test_timeout():
+    p = subby.Processes([["sleep", "10"]])
+    p.run()
+    with pytest.raises(subby.TimeoutExpired):
+        p.block(timeout=1)
+
+
+@pytest.mark.parametrize("mode,expected", [(bytes, b"foo"), (str, "foo")])
+def test_run_str_command(mode, expected):
     with isolated_dir():
-        p = subby.run("echo -n 'foo' | gzip", stdout="foo.txt.gz", block=True)
+        p = subby.run(
+            "echo -n 'foo' | gzip",
+            stdout=Path("foo.txt.gz"),
+            block=True,
+            mode=mode
+        )
         assert p.done and p.closed
-        assert b"foo" == subby.run("gunzip -c foo.txt.gz | cat", block=True).output
+        assert expected == subby.run(
+            "gunzip -c foo.txt.gz | cat",
+            block=True,
+            mode=mode
+        ).output
 
 
 def test_shell():
@@ -72,7 +109,7 @@ def test_shell():
 
 
 def test_state_errors():
-    p = subby.Processes([["echo", "hi"]], stdout=False, stderr=False)
+    p = subby.Processes([["echo", "hi"]], stdout=None, stderr=None)
     with pytest.raises(RuntimeError):
         p.stdout_stream
     with pytest.raises(RuntimeError):
@@ -90,8 +127,6 @@ def test_state_errors():
     with pytest.raises(RuntimeError):
         p.block()
 
-
-def test_stderr_stdout():
     p = subby.Processes([["echo", "hi"]], stdout=None, stderr=None)
     p.run(echo=True)
     p.block()
@@ -104,8 +139,21 @@ def test_stderr_stdout():
     with pytest.raises(RuntimeError):
         p.error
 
+    with pytest.raises(ValueError):
+        p = subby.Processes([["echo", "hi"]], stdout=subby.StdType.FILE)
+        p.run()
+
+
+@pytest.mark.parametrize(
+    "mode,expected_stdout,expected_stderr",
+    [(bytes, b"hi\n", b""), (str, "hi\n", "")]
+)
+def test_stderr_stdout(mode, expected_stdout, expected_stderr):
     p = subby.Processes(
-        [["echo", "hi"]], stdout=subby.StdType.BUFFER, stderr=subby.StdType.BUFFER
+        [["echo", "hi"]],
+        stdout=subby.StdType.BUFFER,
+        stderr=subby.StdType.BUFFER,
+        mode=mode
     )
     p.run(echo=True)
     p.block(close=False)
@@ -118,11 +166,14 @@ def test_stderr_stdout():
     with pytest.raises(RuntimeError):
         p.error
     p.close()
-    assert p.output == b"hi\n"
-    assert p.error == b""
+    assert p.output == expected_stdout
+    assert p.error == expected_stderr
 
     p = subby.Processes(
-        [["echo", "hi"]], stdout=subby.StdType.BUFFER, stderr=subby.StdType.BUFFER
+        [["echo", "hi"]],
+        stdout=subby.StdType.BUFFER,
+        stderr=subby.StdType.BUFFER,
+        mode=mode
     )
     p.run(echo=True)
     p.block()
@@ -130,42 +181,73 @@ def test_stderr_stdout():
     assert p._stderr_type is subby.StdType.BUFFER
     assert p.stdout_stream is not None
     assert p.stderr_stream is not None
-    assert p.output == b"hi\n"
-    assert p.error == b""
-
-    with pytest.raises(ValueError):
-        p = subby.Processes([["echo", "hi"]], stdout=subby.StdType.FILE)
-        p.run()
+    assert p.output == expected_stdout
+    assert p.error == expected_stderr
 
 
-def test_stdin():
-    p = subby.Processes([["grep", "hi"]], stdin=b"hi")
+@pytest.mark.parametrize("mode,expected", [(bytes, b"hi"), (str, "hi")])
+def test_stdin_str(mode, expected):
+    p = subby.Processes([["grep", "hi"]], stdin=b"hi", mode=mode)
     p.run()
     p.block()
+    assert expected == p.output
 
+
+@pytest.mark.parametrize("mode,expected", [(bytes, b"hi"), (str, "hi")])
+def test_stdin_bytes(mode, expected):
+    p = subby.Processes([["grep", "hi"]], stdin="hi", mode=mode)
+    p.run()
+    p.block()
+    assert expected == p.output
+
+
+@pytest.mark.parametrize("mode,expected", [(bytes, b"hi"), (str, "hi")])
+def test_stdin_sys(mode, expected):
     # We have to use a tempfile to mock stdin - an io.BytesIO doesn't work
     # because the fileno method is called
+    mode_str = "t" if mode is str else "b"
     with isolated_dir() as d:
         mock_stdin = d / "stdin"
-        with open(mock_stdin, "wb") as out:
-            out.write(b"hi")
+        with open(mock_stdin, "w" + mode_str) as out:
+            out.write(expected)
         cur_stdin = sys.stdin
         try:
-            with open(mock_stdin, "rb") as inp:
+            with open(mock_stdin, "r" + mode_str) as inp:
                 sys.stdin = inp
-                p = subby.Processes([["grep", "hi"]], stdin=subby.StdType.SYS)
+                p = subby.Processes([
+                    ["grep", "hi"]],
+                    stdin=subby.StdType.SYS,
+                    mode=mode
+                )
                 p.run()
                 p.block()
-                assert p.output == b"hi"
+                assert p.output == expected
         finally:
             sys.stdin = cur_stdin
 
 
-def test_files():
+def test_get_all_stderr():
+    # This command should write to stderr of the second and
+    # third commands, and stdout of the third command
+    p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr")
+    assert p.output == b"hi"
+    assert p.get_all_stderr() == [b"", b"hi", b"hi"]
+
+
+@pytest.mark.parametrize(
+    "mode,expected_stdout,expected_stderr",
+    [(bytes, b"hi\n", b""), (str, "hi\n", "")]
+)
+def test_files(mode, expected_stdout, expected_stderr):
     with isolated_dir() as d:
         stdout = d / "stdout"
         stderr = d / "stderr"
-        p = subby.Processes([["echo", "hi"]], stdout=stdout, stderr=stderr)
+        p = subby.Processes(
+            [["echo", "hi"]],
+            stdout=stdout,
+            stderr=stderr,
+            mode=mode
+        )
         p.run(echo=True)
         p.block()
         assert (str(p)) == f"echo hi > {stdout}"
@@ -177,10 +259,11 @@ def test_files():
             p.output
         with pytest.raises(RuntimeError):
             p.error
-        with open(stdout, "rb") as inp:
-            assert inp.read() == b"hi\n"
-        with open(stderr, "rb") as inp:
-            assert inp.read() == b""
+        mode_str = "t" if mode is str else "b"
+        with open(stdout, "r" + mode_str) as inp:
+            assert inp.read() == expected_stdout
+        with open(stderr, "r" + mode_str) as inp:
+            assert inp.read() == expected_stderr
 
 
 def test_rc():
@@ -226,6 +309,17 @@ def test_kill():
     assert p.returncode != 0
 
 
+def test_allowed_returncodes():
+    with pytest.raises(subprocess.CalledProcessError):
+        # This raises an exception because grep has a returncode of 1
+        # when no lines match
+        subby.run("echo foo | grep -c bar")
+
+    assert (
+        subby.run("echo foo | grep -c bar", allowed_return_codes=(0, 1)).output == b"0"
+    )
+
+
 def test_readme_examples():
     # We can pass input to the stdin of the command as bytes
     input_bytes = b"foo\nbar"
@@ -242,22 +336,3 @@ def test_readme_examples():
 
     # The `output` property provides the output of the command
     assert p1.output == p2.output == p3.output == b"1"
-
-
-def test_allowed_returncodes():
-    with pytest.raises(subprocess.CalledProcessError):
-        # This raises an exception because grep has a returncode of 1
-        # when no lines match
-        subby.run("echo foo | grep -c bar")
-
-    assert (
-        subby.run("echo foo | grep -c bar", allowed_return_codes=(0, 1)).output == b"0"
-    )
-
-
-def test_get_all_stderr():
-    # This command should write to stderr of the second and
-    # third commands, and stdout of the third command
-    p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr")
-    assert p.output == b"hi"
-    assert p.get_all_stderr() == [b"", b"hi", b"hi"]

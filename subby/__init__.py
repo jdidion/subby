@@ -1,3 +1,4 @@
+from subprocess import CalledProcessError, TimeoutExpired
 from typing import Sequence, Union
 
 from subby.core import StdType, Processes

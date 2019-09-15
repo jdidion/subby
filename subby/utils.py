@@ -1,13 +1,5 @@
 import shlex
-import tempfile
-from typing import IO, Sequence, Union
-
-
-def create_and_open_tempfile(mode: str = "wb") -> IO:
-    """
-    Creates and returns a temporary output file object.
-    """
-    return open(tempfile.mkstemp()[1], mode)
+from typing import Sequence, Union
 
 
 def quote_args(seq: Sequence[str]) -> str:

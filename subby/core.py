@@ -7,9 +7,10 @@ from pathlib import Path
 import subprocess
 from subprocess import CalledProcessError, TimeoutExpired
 import sys
-from typing import IO, Optional, Sequence, Tuple, Union, cast
+import tempfile
+from typing import Generic, IO, Optional, Sequence, Tuple, Type, TypeVar, Union, cast
 
-from subby.utils import create_and_open_tempfile, command_lists_to_strings
+from subby.utils import command_lists_to_strings
 
 LOG = logging.getLogger()
 DEFAULT_EXECUTABLE = "/bin/bash"
@@ -27,7 +28,10 @@ class StdType(enum.IntEnum):
     OTHER = 4
 
 
-class Processes:
+T = TypeVar("T", str, bytes)
+
+
+class Processes(Generic[T]):
     """
     Encapsulates one or more commands, runs those commands using the
     `subprocess` module, and provides access to the results.
@@ -49,6 +53,9 @@ class Processes:
             `stdout` for details).
         capture_stderr: Whether to capture the contents of stderr of processes
             other than the final process.
+        mode: Mode to use for stdin/stdout/stderr; can be bytes (raw mode) or str
+            (text mode).
+        encoding: Encoding to use when `mode = str`.
         echo: Whether to echo commands to the logger before running the commands.
             Can be overridden by the `run()` method's `echo` parameter.
         allowed_return_codes: Sequence of return codes that signal successful
@@ -66,6 +73,8 @@ class Processes:
         stdout: Optional[Union[Path, StdType]] = StdType.PIPE,
         stderr: Optional[Union[Path, StdType]] = StdType.PIPE,
         capture_stderr: bool = True,
+        mode: Type[T] = bytes,
+        encoding: str = "UTF-8",
         echo: bool = None,
         allowed_return_codes: Sequence[int] = (0,),
         **popen_kwargs,
@@ -82,7 +91,9 @@ class Processes:
         self._stderr_type = None
         self.capture_stderr = capture_stderr
         self._stderr_buffers = [] if capture_stderr else None
-        self._stderr_bytes = None
+        self._stderr_content = None
+        self._mode = mode
+        self.encoding = encoding
         self._closed = False
         self.echo = echo
         self.allowed_return_codes = set(allowed_return_codes)
@@ -120,27 +131,31 @@ class Processes:
                         break
         return self._returncode
 
+    @property
+    def text_mode(self) -> bool:
+        return self._mode is str
+
     def _init_stdin(self) -> Union[int, IO]:
-        self._stdin, self._stdin_type, retval = Processes._init_std(
+        self._stdin, self._stdin_type, retval = self._init_std(
             self._stdin_arg, sys.stdin, False
         )
         return retval
 
     def _init_stdout(self) -> Union[int, IO]:
-        self._stdout, self._stdout_type, retval = Processes._init_std(
+        self._stdout, self._stdout_type, retval = self._init_std(
             self._stdout_arg, sys.stdout, True
         )
         return retval
 
     def _init_stderr(self) -> Union[int, IO]:
-        self._stderr, self._stderr_type, retval = Processes._init_std(
+        self._stderr, self._stderr_type, retval = self._init_std(
             self._stderr_arg, sys.stderr, True
         )
         return retval
 
-    @staticmethod
     def _init_std(
-        value: Optional[Union[Path, StdType, bytes]],
+        self,
+        value: Optional[Union[Path, StdType, bytes, str]],
         sys_stream: IO,
         is_output: bool = True,
     ) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
@@ -151,23 +166,35 @@ class Processes:
         stream = None
         retval = None
         if isinstance(value, bytes):
-            # Put input in a tempfile
             std_type = StdType.BUFFER
-            stream = create_and_open_tempfile("w+b")
-            stream.write(cast(bytes, value))
+            # Put input in a tempfile
+            stream = self._create_and_open_tempfile("w+")
+            if self.text_mode:
+                stream.write(cast(bytes, value).decode(self.encoding))
+            else:
+                stream.write(cast(bytes, value))
+            stream.seek(0)
+        elif isinstance(value, str):
+            std_type = StdType.BUFFER
+            # Put input in a tempfile
+            stream = self._create_and_open_tempfile("w+")
+            if self.text_mode:
+                stream.write(cast(str, value))
+            else:
+                stream.write(cast(str, value).encode(self.encoding))
             stream.seek(0)
         elif isinstance(value, StdType):
             std_type = cast(StdType, value)
             if std_type is StdType.PIPE:
                 retval = subprocess.PIPE
             elif std_type is StdType.BUFFER and is_output:
-                stream = create_and_open_tempfile()
+                stream = self._create_and_open_tempfile()
             elif std_type is StdType.SYS:
                 stream = sys_stream
             else:
                 raise ValueError(f"Invalid argument: {value}")
         elif value is not None:
-            stream = open(value, "wb" if is_output else "rb")
+            stream = self._open_file(cast(Path, value), "w" if is_output else "r")
             std_type = StdType.FILE
 
         return stream, std_type, retval or stream
@@ -180,12 +207,23 @@ class Processes:
             The opened file object.
         """
         if self.capture_stderr:
-            handle = create_and_open_tempfile()
+            handle = self._create_and_open_tempfile()
             self._stderr_buffers.append(handle)
             return handle
 
+    def _open_file(self, path: Union[str, Path], mode: str) -> IO:
+        mode += "t" if self.text_mode else "b"
+        return open(path, mode)
+
+    def _create_and_open_tempfile(self, mode: str = "w") -> IO:
+        """
+        Creates and returns a temporary output file object.
+        """
+        mode += "t" if self.text_mode else "b"
+        return open(tempfile.mkstemp()[1], mode)
+
     @property
-    def output(self) -> bytes:
+    def output(self) -> T:
         """
         The contents of the `stdout` stream of the last process in the chain.
         Only available if `self.closed is True` and `self._stdout_type in
@@ -199,7 +237,7 @@ class Processes:
         return self._out
 
     @property
-    def error(self) -> bytes:
+    def error(self) -> T:
         """
         The contents of the `stderr` stream of the last process in the chain.
         Only available if `self.closed is True` and `self._stderr_type in
@@ -230,7 +268,7 @@ class Processes:
             raise RuntimeError("Cannot access 'stderr' until after calling 'run'.")
         return self._stderr or self._processes[-1].stderr
 
-    def get_all_stderr(self) -> Sequence[bytes]:
+    def get_all_stderr(self) -> Sequence[T]:
         """
         Get the contents of all stderr streams. Stderr streams of all but the final
         process are only available if `self.capture_stderr is True`. Stderr stream
@@ -248,7 +286,7 @@ class Processes:
             )
         stderr = []
         if self.capture_stderr:
-            stderr.extend(self._stderr_bytes)
+            stderr.extend(self._stderr_content)
         if self._stderr_type in (StdType.BUFFER, StdType.PIPE):
             stderr.append(self.error)
         return stderr
@@ -306,6 +344,9 @@ class Processes:
         for i, cmd in enumerate(self.cmds, 1):
             popen_kwargs = copy.copy(self.popen_kwargs)
             popen_kwargs.update(kwargs)
+            if self.text_mode:
+                popen_kwargs["universal_newlines"] = True
+                popen_kwargs["encoding"] = self.encoding
             if i == 1:
                 popen_kwargs["stdin"] = self._init_stdin()
             elif procs:
@@ -346,18 +387,17 @@ class Processes:
 
         last_proc = self._processes[-1]
         try:  # TODO: figure out how to test this
+            default_value = "" if self.text_mode else b""
             out, err = (
-                b"" if std is None else std.strip()
+                default_value if std is None else std.strip()
                 for std in last_proc.communicate(timeout=timeout)
             )
             if self._stdout_type == StdType.PIPE:
                 self._out = out
             if self._stderr_type == StdType.PIPE:
                 self._err = err
-        except ValueError:
+        except ValueError:  # TODO: figure out how to test this
             LOG.exception("Error reading from stdout/stderr")
-        except TimeoutExpired:
-            LOG.exception(f"Process timed out after {timeout} seconds")
 
         if close and not self.closed:
             self._close_and_set_std()
@@ -438,10 +478,10 @@ class Processes:
                 if self._stdin_type is StdType.BUFFER:
                     remove_file(self._stdin)
 
-        def close_output_buffer(handle) -> bytes:
+        def close_output_buffer(handle) -> T:
             close_file(handle)
             try:
-                with open(handle.name, "rb") as inp:
+                with self._open_file(handle.name, "r") as inp:
                     return inp.read()
             finally:
                 remove_file(handle)
@@ -457,7 +497,7 @@ class Processes:
             self._err = close_output_buffer(self._stderr)
 
         if self.capture_stderr:
-            self._stderr_bytes = [
+            self._stderr_content = [
                 close_output_buffer(buf) for buf in self._stderr_buffers
             ]
             self._stderr_buffers = None
@@ -473,8 +513,9 @@ class Processes:
             CalledProcessError
         """
         if self.done and not self.ok:
+            sep = "\n" if self.text_mode else b"\n"
             msg = "stderr from executed commands:\n{}".format(
-                b"\n".join(self.get_all_stderr())
+                sep.join(self.get_all_stderr())
             )
             raise CalledProcessError(self.returncode, str(self), output=msg)
 

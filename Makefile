@@ -9,6 +9,7 @@ BUILD = poetry build && pip install --upgrade dist/$(module)-$(version)-py3-none
 TEST  = env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests) && coverage report -m && coverage xml
 
 all:
+	$(clean)
 	$(BUILD)
 	$(TEST)
 
