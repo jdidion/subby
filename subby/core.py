@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 import subprocess
-from subprocess import CalledProcessError, TimeoutExpired
+from subprocess import CalledProcessError
 import sys
 import tempfile
 from typing import Generic, IO, Optional, Sequence, Tuple, Type, TypeVar, Union, cast
@@ -28,10 +28,10 @@ class StdType(enum.IntEnum):
     OTHER = 4
 
 
-T = TypeVar("T", str, bytes)
+Mode = TypeVar("Mode", str, bytes)
 
 
-class Processes(Generic[T]):
+class Processes(Generic[Mode]):
     """
     Encapsulates one or more commands, runs those commands using the
     `subprocess` module, and provides access to the results.
@@ -69,11 +69,11 @@ class Processes(Generic[T]):
     def __init__(
         self,
         cmds: Sequence[Union[str, Sequence[str]]],
-        stdin: Optional[Union[bytes, Path, StdType]] = None,
+        stdin: Optional[Union[Mode, Path, StdType]] = None,
         stdout: Optional[Union[Path, StdType]] = StdType.PIPE,
         stderr: Optional[Union[Path, StdType]] = StdType.PIPE,
         capture_stderr: bool = True,
-        mode: Type[T] = bytes,
+        mode: Type[Mode] = str,
         encoding: str = "UTF-8",
         echo: bool = None,
         allowed_return_codes: Sequence[int] = (0,),
@@ -223,7 +223,7 @@ class Processes(Generic[T]):
         return open(tempfile.mkstemp()[1], mode)
 
     @property
-    def output(self) -> T:
+    def output(self) -> Mode:
         """
         The contents of the `stdout` stream of the last process in the chain.
         Only available if `self.closed is True` and `self._stdout_type in
@@ -237,7 +237,7 @@ class Processes(Generic[T]):
         return self._out
 
     @property
-    def error(self) -> T:
+    def error(self) -> Mode:
         """
         The contents of the `stderr` stream of the last process in the chain.
         Only available if `self.closed is True` and `self._stderr_type in
@@ -268,7 +268,7 @@ class Processes(Generic[T]):
             raise RuntimeError("Cannot access 'stderr' until after calling 'run'.")
         return self._stderr or self._processes[-1].stderr
 
-    def get_all_stderr(self) -> Sequence[T]:
+    def get_all_stderr(self) -> Sequence[Mode]:
         """
         Get the contents of all stderr streams. Stderr streams of all but the final
         process are only available if `self.capture_stderr is True`. Stderr stream
@@ -478,7 +478,7 @@ class Processes(Generic[T]):
                 if self._stdin_type is StdType.BUFFER:
                     remove_file(self._stdin)
 
-        def close_output_buffer(handle) -> T:
+        def close_output_buffer(handle) -> Mode:
             close_file(handle)
             try:
                 with self._open_file(handle.name, "r") as inp:

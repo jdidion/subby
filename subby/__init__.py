@@ -1,15 +1,34 @@
-from subprocess import CalledProcessError, TimeoutExpired
-from typing import Sequence, Union
+from typing import Sequence, Type, Union
 
-from subby.core import StdType, Processes
+from subby.core import Mode, StdType, Processes
 from subby import utils
 
 DEFAULT_EXECUTABLE = "/bin/bash"
 
 
+def sub(cmd: str, **kwargs) -> str:
+    """
+    Convenience method, equivalent to run(cmd, mode=str, block=True, **kwargs).
+
+    Args:
+        cmd: The command to run
+        kwargs: Additional kwargs passed to `run()`
+
+    Returns:
+        Tuple (stdout, stderr)
+    """
+    if not kwargs.get("block", True):
+        raise ValueError("Must call sub() with block=True")
+    if not kwargs.get("mode", str) is str:
+        raise ValueError("Must call sub() with mode=str")
+    p = run(cmd, **kwargs)
+    return p.output
+
+
 def run(
     cmds: Union[str, Sequence[Union[str, Sequence[str]]]],
     shell: Union[str, bool] = False,
+    mode: Type[Mode] = str,
     block: bool = True,
     **kwargs
 ) -> Processes:
@@ -24,6 +43,7 @@ def run(
             using the shell, or a string value specifying the shell executable to use
             (which also implies shell=True). If None, the command is executed via the
             default shell (which, according to the subprocess docs, is /bin/sh).
+        mode:
         block: Whether to block until all processes have completed.
         kwargs: Additional keyword arguments to pass to :class:`Processes`
             constructor.
@@ -83,7 +103,11 @@ def run(
         executable = None
 
     processes = Processes(
-        cmds, shell=(shell is not False), executable=executable, **kwargs
+        cmds,
+        mode=mode,
+        shell=(shell is not False),
+        executable=executable,
+        **kwargs
     )
 
     if block:

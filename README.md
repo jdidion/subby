@@ -19,20 +19,32 @@ Subby's primary interface is the `run` function. It takes a list of commands and
 import subby
 
 # We can pass input to the stdin of the command as bytes
-input_bytes = b"foo\nbar"
+input_str = "foo\nbar"
 
 # The following three commands are equivalent; each returns a
 # `Processes` object that can be used to inspect and control
 # the process(es).
-p1 = subby.run([["grep foo", "wc -l"]], stdin=input_bytes)
-p2 = subby.run(("grep foo", "wc -l"), stdin=input_bytes)
-p3 = subby.run("grep foo | wc -l", stdin=input_bytes)
+p1 = subby.run([["grep foo", "wc -l"]], stdin=input_str)
+p2 = subby.run(("grep foo", "wc -l"), stdin=input_str)
+p3 = subby.run("grep foo | wc -l", stdin=input_str)
 
 # The `done` property tells us whether the processes have finished
 assert p1.done and p2.done and p3.done
 
 # The `output` property provides the output of the command
-assert p1.output == p2.output == p3.output == b"1"
+assert p1.output == p2.output == p3.output == "1"
+```
+
+### Raw mode
+
+By default, text I/O is used for stdin/stdout/stderr. You can instead use raw I/O (bytes) by passing `mode=bytes`.
+
+```
+import subby
+
+assert b"1" == subby.run(
+    "grep foo | wc -l", stdin="foo\nbar", mode=bytes
+).output
 ```
 
 ### Non-blocking processes
@@ -64,6 +76,16 @@ if not p.ok:
     # The `Processes.output` and `Processes.error` properties
     # provide access to the process stdout and stderr.
     print(f"The command failed: stderr={p.error}")
+```
+
+### Convenience method
+
+There is also a convenience method, `sub`, equivalent to calling `run` with `mode=str` and `block=True` and returning the `output` attribute (stdout) of the resulting `Processes` object.
+
+```python
+import subby
+
+assert subby.sub("grep foo | wc -l", stdin="foo\nbar") == "1"
 ```
 
 ### stdin/stdout/stderr

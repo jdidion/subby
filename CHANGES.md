@@ -2,6 +2,7 @@
 
 ## 0.1.3 (dev)
 
+* Added mode parameter to specify raw (bytes) vs text mode
 * Added tests
 * Blackened code
 

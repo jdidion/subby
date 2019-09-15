@@ -46,6 +46,14 @@ def test_run(mode, expected):
         ).output
 
 
+def test_sub():
+    with pytest.raises(ValueError):
+        subby.sub("grep foo | wc -l", stdin=b"foo\nbar", mode=bytes)
+    with pytest.raises(ValueError):
+        subby.sub("grep foo | wc -l", stdin="foo\nbar", block=False)
+    assert subby.sub("grep foo | wc -l", stdin="foo\nbar") == "1"
+
+
 @pytest.mark.parametrize("mode,expected", [(bytes, b"foo"), (str, "foo")])
 def test_run_noblock(mode, expected):
     with isolated_dir():
@@ -68,7 +76,7 @@ def test_run_noblock(mode, expected):
 def test_timeout():
     p = subby.Processes([["sleep", "10"]])
     p.run()
-    with pytest.raises(subby.TimeoutExpired):
+    with pytest.raises(subprocess.TimeoutExpired):
         p.block(timeout=1)
 
 
@@ -226,12 +234,15 @@ def test_stdin_sys(mode, expected):
             sys.stdin = cur_stdin
 
 
-def test_get_all_stderr():
+@pytest.mark.parametrize(
+    "mode,expected,expected_0", [(bytes, b"hi", b""), (str, "hi", "")]
+)
+def test_get_all_stderr(mode, expected, expected_0):
     # This command should write to stderr of the second and
     # third commands, and stdout of the third command
-    p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr")
-    assert p.output == b"hi"
-    assert p.get_all_stderr() == [b"", b"hi", b"hi"]
+    p = subby.run("echo -n hi | tee /dev/stderr | tee /dev/stderr", mode=mode)
+    assert p.output == expected
+    assert p.get_all_stderr() == [expected_0, expected, expected]
 
 
 @pytest.mark.parametrize(
@@ -309,30 +320,33 @@ def test_kill():
     assert p.returncode != 0
 
 
-def test_allowed_returncodes():
+@pytest.mark.parametrize("mode,expected", [(bytes, b"0"), (str, "0")])
+def test_allowed_returncodes(mode, expected):
     with pytest.raises(subprocess.CalledProcessError):
         # This raises an exception because grep has a returncode of 1
         # when no lines match
-        subby.run("echo foo | grep -c bar")
+        subby.run("echo foo | grep -c bar", mode=mode)
 
-    assert (
-        subby.run("echo foo | grep -c bar", allowed_return_codes=(0, 1)).output == b"0"
-    )
+    assert subby.run(
+        "echo foo | grep -c bar",
+        mode=mode,
+        allowed_return_codes=(0, 1)
+    ).output == expected
 
 
 def test_readme_examples():
     # We can pass input to the stdin of the command as bytes
-    input_bytes = b"foo\nbar"
+    input_str = "foo\nbar"
 
     # The following three commands are equivalent; each returns a
     # `subby.Processes` object that can be used to inspect and control
     # the process(es).
-    p1 = subby.run([["grep", "foo"], ["wc", "-l"]], stdin=input_bytes)
-    p2 = subby.run(("grep foo", "wc -l"), stdin=input_bytes)
-    p3 = subby.run("grep foo | wc -l", stdin=input_bytes)
+    p1 = subby.run([["grep", "foo"], ["wc", "-l"]], stdin=input_str)
+    p2 = subby.run(("grep foo", "wc -l"), stdin=input_str)
+    p3 = subby.run("grep foo | wc -l", stdin=input_str)
 
     # The `done` property tells us whether the processes have finished
     assert p1.done and p2.done and p3.done
 
     # The `output` property provides the output of the command
-    assert p1.output == p2.output == p3.output == b"1"
+    assert p1.output == p2.output == p3.output == "1"
