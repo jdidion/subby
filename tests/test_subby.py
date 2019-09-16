@@ -154,6 +154,20 @@ def test_state_errors():
         p = subby.Processes([["echo", "hi"]], stdout=subby.StdType.FILE)
         p.run()
 
+    subby.Processes([["echo", "hi"]], mode=str, universal_newlines=True)
+    subby.Processes([["echo", "hi"]], mode=str, text=True)
+    subby.Processes([["echo", "hi"]], mode=bytes, universal_newlines=False)
+    subby.Processes([["echo", "hi"]], mode=bytes, text=False)
+
+    with pytest.raises(ValueError):
+        subby.Processes([["echo", "hi"]], mode=str, universal_newlines=False)
+    with pytest.raises(ValueError):
+        subby.Processes([["echo", "hi"]], mode=str, text=False)
+    with pytest.raises(ValueError):
+        subby.Processes([["echo", "hi"]], mode=bytes, universal_newlines=True)
+    with pytest.raises(ValueError):
+        subby.Processes([["echo", "hi"]], mode=bytes, text=True)
+
 
 @pytest.mark.parametrize(
     "mode,expected_stdout,expected_stderr",

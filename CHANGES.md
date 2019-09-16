@@ -1,5 +1,9 @@
 # Changes
 
+## 0.1.6 (dev)
+
+* Check for redundant/invalid popen kwargs
+
 ## 0.1.5 (2019.09.15)
 
 * Bugfixes

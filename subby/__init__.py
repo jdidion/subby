@@ -17,7 +17,7 @@ def sub(
         kwargs: Additional kwargs passed to `run()`
 
     Returns:
-        The process stdout (if type is PIPE or BUFFER) else None.
+        The process stdout (if its type is PIPE or BUFFER) else None.
     """
     if not kwargs.get("block", True):
         raise ValueError("Must call sub() with block=True")

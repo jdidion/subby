@@ -61,9 +61,6 @@ class Processes(Generic[Mode]):
         allowed_return_codes: Sequence of return codes that signal successful
             completion; [0] by default.
         popen_kwargs: Keyword arguments to pass to Popen constructors.
-
-    Todo:
-        Add ability to send input to stdin of first process.
     """
 
     def __init__(
@@ -79,6 +76,21 @@ class Processes(Generic[Mode]):
         allowed_return_codes: Sequence[int] = (0,),
         **popen_kwargs,
     ):
+        if "universal_newlines" in popen_kwargs:
+            universal_newlines = popen_kwargs.pop("universal_newlines")
+            if universal_newlines != (mode is str):
+                raise ValueError(
+                    f"'universal_newlines' is redundant; if specified, its value must "
+                    f"match the 'mode' value of {mode}"
+                )
+        if "text" in popen_kwargs:
+            text = popen_kwargs.pop("text")
+            if text != (mode is str):
+                raise ValueError(
+                    f"'text' is redundant; if specified, its value must "
+                    f"match the 'mode' value of {mode}"
+                )
+
         self.cmds = cmds
         self._stdin_arg = stdin
         self._stdin = None
