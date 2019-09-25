@@ -1,6 +1,6 @@
 # Changes
 
-## 0.1.6 (dev)
+## 0.1.6 (2019.09.24)
 
 * Check for redundant/invalid popen kwargs
 * Enable default values for `timeout` and `raise_on_error` to be passed to the `Processes` constructor
