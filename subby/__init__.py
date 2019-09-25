@@ -46,7 +46,7 @@ def run(
             using the shell, or a string value specifying the shell executable to use
             (which also implies shell=True). If None, the command is executed via the
             default shell (which, according to the subprocess docs, is /bin/sh).
-        mode:
+        mode: I/O mode; can be str (text) or bytes (raw).
         block: Whether to block until all processes have completed.
         kwargs: Additional keyword arguments to pass to :class:`Processes`
             constructor.
@@ -114,8 +114,8 @@ def run(
     )
 
     if block:
-        with processes as procs:
-            procs.block()
+        with processes:
+            processes.block()
     else:
         processes.run()
 

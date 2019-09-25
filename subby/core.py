@@ -60,6 +60,11 @@ class Processes(Generic[Mode]):
             Can be overridden by the `run()` method's `echo` parameter.
         allowed_return_codes: Sequence of return codes that signal successful
             completion; [0] by default.
+        raise_on_error: Whether to raise an exception if the process terminates
+            with a non-allowed return code.
+        timeout: When blocking, number of seconds to wait for the process to complete
+            before raising a TimeoutError (can be overridden by `timeout` parameter
+            to `block()`).
         popen_kwargs: Keyword arguments to pass to Popen constructors.
     """
 
@@ -74,6 +79,8 @@ class Processes(Generic[Mode]):
         encoding: str = "UTF-8",
         echo: bool = None,
         allowed_return_codes: Sequence[int] = (0,),
+        raise_on_error: Optional[bool] = None,
+        timeout: Optional[int] = None,
         **popen_kwargs,
     ):
         if "universal_newlines" in popen_kwargs:
@@ -110,6 +117,8 @@ class Processes(Generic[Mode]):
         self.echo = echo
         self.allowed_return_codes = set(allowed_return_codes)
         self.popen_kwargs = popen_kwargs
+        self.raise_on_error = raise_on_error
+        self.timeout = timeout
         self._processes = None
         self._output_handle = None
         self._returncode = None
@@ -397,7 +406,7 @@ class Processes(Generic[Mode]):
     def block(
         self,
         close: bool = True,
-        raise_on_error: bool = True,
+        raise_on_error: Optional[bool] = None,
         timeout: Optional[int] = None,
     ):
         """
@@ -415,9 +424,12 @@ class Processes(Generic[Mode]):
         if self.closed:
             raise RuntimeError("Cannot call block() after calling close()")
 
+        default_value = "" if self.text_mode else b""
         last_proc = self._processes[-1]
+        if timeout is None:
+            timeout = self.timeout
+        
         try:  # TODO: figure out how to test this
-            default_value = "" if self.text_mode else b""
             out, err = (
                 default_value if std is None else std.strip()
                 for std in last_proc.communicate(timeout=timeout)
@@ -432,7 +444,9 @@ class Processes(Generic[Mode]):
         if close and not self.closed:
             self._close_and_set_std()
 
-        if raise_on_error:
+        if raise_on_error is None:
+            raise_on_error = self.raise_on_error
+        if raise_on_error is not False:
             self.raise_if_error()
 
     def kill(self) -> bool:

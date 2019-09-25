@@ -5,19 +5,16 @@ desc = Release $(version)
 tests = tests
 pytestopts = -s -vv --show-capture=all
 
-BUILD = poetry build && pip install --upgrade dist/$(module)-$(version)-py3-none-any.whl $(installargs)
-TEST  = env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests) && coverage report -m && coverage xml
+all: clean install test
 
-all:
-	$(clean)
-	$(BUILD)
-	$(TEST)
-
-install:
-	$(BUILD)
+install: clean
+	poetry build
+	pip install --upgrade dist/$(module)-$(version)-py3-none-any.whl $(installargs)
 
 test:
-	$(TEST)
+	env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests)
+	coverage report -m
+	coverage xml
 
 docs:
 	make -C docs api
@@ -36,19 +33,21 @@ clean:
 	rm -Rf build
 	rm -Rf $(module).egg-info
 
-release:
-	$(clean)
-	# tag
+tag:
 	git tag $(version)
-	# build
-	$(BUILD)
-	$(TEST)
-	# release
-	poetry publish
-	git push origin --tags
-	$(github_release)
 
-github_release:
+push_tag:
+	git push origin --tags
+
+del_tag:
+	git tag -d $(version)
+
+pypi_release:
+	poetry publish
+
+release: clean tag
+	${MAKE} install test pypi_release push_tag || (${MAKE} del_tag && exit 1)
+
 	curl -v -i -X POST \
 		-H "Content-Type:application/json" \
 		-H "Authorization: token $(token)" \
