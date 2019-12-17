@@ -2,6 +2,8 @@
 
 ## 0.1.7 (dev)
 
+* Expose `stdin_stream` property on `Process`
+
 ## 0.1.6 (2019.09.24)
 
 * Check for redundant/invalid popen kwargs

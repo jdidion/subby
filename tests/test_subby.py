@@ -257,6 +257,23 @@ def test_stdin_sys(mode, expected):
             sys.stdin = cur_stdin
 
 
+def test_stdin_stream():
+    p = subby.Processes(
+        [["cat"]], stdin=subby.StdType.PIPE, stdout=subby.StdType.PIPE
+    )
+
+    try:
+        p.run()
+        assert p.stdin_type == subby.StdType.PIPE
+        stdin = p.stdin_stream
+        stdout = p.stdout_stream
+        stdin.write("hello\n")
+        stdin.flush()
+        assert stdout.readline() == "hello\n"
+    finally:
+        p.block()
+
+
 @pytest.mark.parametrize(
     "mode,expected,expected_0", [(bytes, b"hi", b""), (str, "hi", "")]
 )
