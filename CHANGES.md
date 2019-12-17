@@ -1,6 +1,10 @@
 # Changes
 
-## 0.1.7 (dev)
+## dev
+
+## 0.1.7 (2019.12.17)
+
+* Expose `stdin_stream` property on `Process`
 
 ## 0.1.6 (2019.09.24)
 

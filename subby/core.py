@@ -278,6 +278,20 @@ class Processes(Generic[Mode]):
         return self._stdin_type
 
     @property
+    def stdin_stream(self) -> IO:
+        """
+        The `stdin` stream.
+
+        Note:
+            Writing directly to the process stdin could cause a deadlock. Unless you
+            know what you are doing, do not access this stream - instead, pass
+            `stdin=<string or bytes>` to the initializer.
+        """
+        if not self.was_run:
+            raise RuntimeError("Cannot access 'stdout' until after calling 'run'.")
+        return self._stdin or self._processes[0].stdin
+
+    @property
     def stdout_type(self) -> StdType:
         if self._stdout_type is None:
             raise RuntimeError("Cannot access 'stdout_type' until after calling 'run'.")
@@ -428,7 +442,7 @@ class Processes(Generic[Mode]):
         last_proc = self._processes[-1]
         if timeout is None:
             timeout = self.timeout
-        
+
         try:  # TODO: figure out how to test this
             out, err = (
                 default_value if std is None else std.strip()
