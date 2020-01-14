@@ -1,6 +1,6 @@
 from typing import Optional, Sequence, Type, Union
 
-from subby.core import Mode, StdType, Processes
+from subby.core import CalledProcessError, Mode, StdType, Processes
 from subby import utils
 
 DEFAULT_EXECUTABLE = "/bin/bash"
