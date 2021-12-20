@@ -30,7 +30,7 @@ def sub(
 
 def run(
     cmds: Union[str, Sequence[Union[str, Sequence[str]]]],
-    shell: Union[str, bool] = False,
+    shell: Optional[Union[str, bool]] = None,
     mode: Type[Mode] = str,
     block: bool = True,
     **kwargs
@@ -44,8 +44,9 @@ def run(
             get the component commands.
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
-            (which also implies shell=True). If None, the command is executed via the
-            default shell (which, according to the subprocess docs, is /bin/sh).
+            (which also implies shell=True). If None, the value is auto-detected - `True` if `cmds`
+            is a string otherwise `False. If `true` the command is executed via the default shell
+            (which, according to the `subprocess` docs, is `/bin/sh`).
         mode: I/O mode; can be str (text) or bytes (raw).
         block: Whether to block until all processes have completed.
         kwargs: Additional keyword arguments to pass to :class:`Processes`
@@ -92,6 +93,14 @@ def run(
     """
     if isinstance(cmds, str):
         cmds = [c.strip() for c in cmds.split("|")]
+        if shell is None:
+            shell = True
+    else:
+        cmds = list(cmds)
+        if len(cmds) == 0:
+            raise ValueError("'cmds' cannot be an empty list")
+        if shell is None:
+            shell = False
 
     if shell is False:
         cmds = utils.command_strings_to_lists(cmds)
@@ -106,11 +115,7 @@ def run(
         executable = None
 
     processes = Processes(
-        cmds,
-        mode=mode,
-        shell=(shell is not False),
-        executable=executable,
-        **kwargs
+        cmds, mode=mode, shell=(shell is not False), executable=executable, **kwargs
     )
 
     if block:
