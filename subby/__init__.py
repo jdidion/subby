@@ -6,11 +6,39 @@ from subby import utils
 DEFAULT_EXECUTABLE = "/bin/bash"
 
 
+def cmd(
+    cmd: Sequence[str],
+    shell: Optional[Union[str, bool]] = False,
+    mode: Type[Mode] = str,
+    block: bool = True,
+    **kwargs
+) -> Processes:
+    """
+    Run a single (non-piped) command. Convenience method, equivalent to run([cmd], **kwargs).
+
+    Args:
+        cmd: A command specified as a list of strings.
+        shell: Can be a boolean specifying whether to execute the command
+            using the shell, or a string value specifying the shell executable to use
+            (which also implies shell=True). If None, the value is auto-detected - `True` if `cmds`
+            is a string otherwise `False. If `true` the command is executed via the default shell
+            (which, according to the `subprocess` docs, is `/bin/sh`).
+        mode: I/O mode; can be str (text) or bytes (raw).
+        block: Whether to block until all processes have completed.
+        kwargs: Additional keyword arguments to pass to :class:`Processes`
+            constructor.
+
+    Returns:
+        A :class:`subby.Processes` object.
+    """
+    return run([cmd], shell=shell, mode=mode, block=block, **kwargs)
+
+
 def sub(
     cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs
 ) -> Optional[str]:
     """
-    Convenience method, equivalent to run(cmd, mode=str, block=True, **kwargs).
+    Convenience method, equivalent to run(cmds, mode=str, block=True, **kwargs).
 
     Args:
         cmds: The command(s) to run

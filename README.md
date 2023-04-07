@@ -13,7 +13,7 @@ The only requirement is python 3.6+. There are no other 3rd-party runtime depend
 
 ## Usage
 
-Subby's primary interface is the `run` function. It takes a list of commands and executes them. If there is are multiple commands, they are chained (i.e. piped) together.
+Subby's primary interface is the `run` function. It takes a list of commands and executes them. If there is are multiple commands, they are chained (i.e., piped) together.
 
 ```python
 import subby
@@ -39,7 +39,7 @@ assert p1.output == p2.output == p3.output == "1"
 
 By default, text I/O is used for stdin/stdout/stderr. You can instead use raw I/O (bytes) by passing `mode=bytes`.
 
-```
+```python
 import subby
 
 assert b"1" == subby.run(
@@ -78,12 +78,18 @@ if not p.ok:
     print(f"The command failed: stderr={p.error}")
 ```
 
-### Convenience method
+### Convenience methods
 
-There is also a convenience method, `sub`, equivalent to calling `run` with `mode=str` and `block=True` and returning the `output` attribute (stdout) of the resulting `Processes` object.
+There are also some convenience methods to improve the ergonomics for common scenarios.
+
+* `subby.cmd`: Run a single command. Equivalent to calling `subby.run([cmd], ...)`, where `cmd` is a string (with no '|') or list of strings.
+* `subby.sub`: Equivalent to calling `subby.run` with `mode=str` and `block=True` and returning the `output` attribute (stdout) of the resulting `Processes` object.
 
 ```python
 import subby
+
+assert subby.cmd("grep foo", stdin="foo\nbar").output == "foo"
+assert subby.cmd(["grep", "foo"], stdin="foo\nbar").output == "foo"
 
 assert subby.sub("grep foo | wc -l", stdin="foo\nbar") == "1"
 ```

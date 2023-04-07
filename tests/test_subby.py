@@ -33,17 +33,13 @@ def isolated_dir(*args, **kwargs) -> Iterable[Path]:
 def test_run(mode, expected):
     with isolated_dir():
         p = subby.run(
-            ["echo -n 'foo'", "gzip"],
-            stdout=Path("foo.txt.gz"),
-            block=True,
-            mode=mode
+            ["echo -n 'foo'", "gzip"], stdout=Path("foo.txt.gz"), block=True, mode=mode
         )
         assert p.done and p.closed
-        assert expected == subby.run(
-            ["gunzip -c foo.txt.gz", "cat"],
-            block=True,
-            mode=mode
-        ).output
+        assert (
+            expected
+            == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True, mode=mode).output
+        )
 
 
 def test_sub():
@@ -54,14 +50,15 @@ def test_sub():
     assert subby.sub("grep foo | wc -l", stdin="foo\nbar") == "1"
 
 
+def test_cmd():
+    assert subby.cmd(["grep", "foo"], stdin="foo\nbar").output == "foo"
+
+
 @pytest.mark.parametrize("mode,expected", [(bytes, b"foo"), (str, "foo")])
 def test_run_noblock(mode, expected):
     with isolated_dir():
         p = subby.run(
-            ["echo -n 'foo'", "gzip"],
-            stdout=Path("foo.txt.gz"),
-            block=False,
-            mode=mode
+            ["echo -n 'foo'", "gzip"], stdout=Path("foo.txt.gz"), block=False, mode=mode
         )
         assert not p.done
         assert p.stdin_type is subby.StdType.OTHER
@@ -69,11 +66,10 @@ def test_run_noblock(mode, expected):
         assert p.stderr_type is subby.StdType.PIPE
         p.block()
         assert p.done and p.closed
-        assert expected == subby.run(
-            ["gunzip -c foo.txt.gz", "cat"],
-            block=True,
-            mode=mode
-        ).output
+        assert (
+            expected
+            == subby.run(["gunzip -c foo.txt.gz", "cat"], block=True, mode=mode).output
+        )
 
 
 def test_timeout():
@@ -87,24 +83,20 @@ def test_timeout():
 def test_run_str_command(mode, expected):
     with isolated_dir():
         p = subby.run(
-            "echo -n 'foo' | gzip",
-            stdout=Path("foo.txt.gz"),
-            block=True,
-            mode=mode
+            "echo -n 'foo' | gzip", stdout=Path("foo.txt.gz"), block=True, mode=mode
         )
         assert p.done and p.closed
-        assert expected == subby.run(
-            "gunzip -c foo.txt.gz | cat",
-            block=True,
-            mode=mode
-        ).output
+        assert (
+            expected
+            == subby.run("gunzip -c foo.txt.gz | cat", block=True, mode=mode).output
+        )
 
 
 def test_shell():
     with pytest.raises(FileNotFoundError):
         # We expect FileNotFound because exit is a shell-specific command and won't
         # be recognized unless we run in the shell
-        subby.run("exit 2")
+        subby.run("exit 2", shell=False)
 
     try:
         subby.run("exit 2", shell="/bin/sh")
@@ -170,15 +162,14 @@ def test_state_errors():
 
 
 @pytest.mark.parametrize(
-    "mode,expected_stdout,expected_stderr",
-    [(bytes, b"hi\n", b""), (str, "hi\n", "")]
+    "mode,expected_stdout,expected_stderr", [(bytes, b"hi\n", b""), (str, "hi\n", "")]
 )
 def test_stderr_stdout(mode, expected_stdout, expected_stderr):
     p = subby.Processes(
         [["echo", "hi"]],
         stdout=subby.StdType.BUFFER,
         stderr=subby.StdType.BUFFER,
-        mode=mode
+        mode=mode,
     )
     with pytest.raises(RuntimeError):
         p.stdin_type
@@ -204,7 +195,7 @@ def test_stderr_stdout(mode, expected_stdout, expected_stderr):
         [["echo", "hi"]],
         stdout=subby.StdType.BUFFER,
         stderr=subby.StdType.BUFFER,
-        mode=mode
+        mode=mode,
     )
     p.run(echo=True)
     p.block()
@@ -245,10 +236,8 @@ def test_stdin_sys(mode, expected):
         try:
             with open(mock_stdin, "r" + mode_str) as inp:
                 sys.stdin = inp
-                p = subby.Processes([
-                    ["grep", "hi"]],
-                    stdin=subby.StdType.SYS,
-                    mode=mode
+                p = subby.Processes(
+                    [["grep", "hi"]], stdin=subby.StdType.SYS, mode=mode
                 )
                 p.run()
                 p.block()
@@ -258,9 +247,7 @@ def test_stdin_sys(mode, expected):
 
 
 def test_stdin_stream():
-    p = subby.Processes(
-        [["cat"]], stdin=subby.StdType.PIPE, stdout=subby.StdType.PIPE
-    )
+    p = subby.Processes([["cat"]], stdin=subby.StdType.PIPE, stdout=subby.StdType.PIPE)
 
     try:
         p.run()
@@ -286,19 +273,13 @@ def test_get_all_stderr(mode, expected, expected_0):
 
 
 @pytest.mark.parametrize(
-    "mode,expected_stdout,expected_stderr",
-    [(bytes, b"hi\n", b""), (str, "hi\n", "")]
+    "mode,expected_stdout,expected_stderr", [(bytes, b"hi\n", b""), (str, "hi\n", "")]
 )
 def test_files(mode, expected_stdout, expected_stderr):
     with isolated_dir() as d:
         stdout = d / "stdout"
         stderr = d / "stderr"
-        p = subby.Processes(
-            [["echo", "hi"]],
-            stdout=stdout,
-            stderr=stderr,
-            mode=mode
-        )
+        p = subby.Processes([["echo", "hi"]], stdout=stdout, stderr=stderr, mode=mode)
         p.run(echo=True)
         p.block()
         assert (str(p)) == f"echo hi > {stdout}"
@@ -367,11 +348,12 @@ def test_allowed_returncodes(mode, expected):
         # when no lines match
         subby.run("echo foo | grep -c bar", mode=mode)
 
-    assert subby.run(
-        "echo foo | grep -c bar",
-        mode=mode,
-        allowed_return_codes=(0, 1)
-    ).output == expected
+    assert (
+        subby.run(
+            "echo foo | grep -c bar", mode=mode, allowed_return_codes=(0, 1)
+        ).output
+        == expected
+    )
 
 
 def test_readme_examples():
