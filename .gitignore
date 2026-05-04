@@ -6,3 +6,5 @@ dist/
 build/
 .benchmarks/
 **/__pycache__/
+# oh-my-claudecode scratch
+.omc/
