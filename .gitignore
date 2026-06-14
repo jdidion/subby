@@ -1,9 +1,13 @@
 .coverage
 coverage.xml
 poetry.lock
+uv.lock
+subby/_version.py
 .pytest_cache
+.ruff_cache
 dist/
 build/
+*.egg-info/
 .benchmarks/
 **/__pycache__/
 # oh-my-claudecode scratch
