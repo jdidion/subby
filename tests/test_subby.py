@@ -1,18 +1,17 @@
 import contextlib
 import logging
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
 import pytest
 
 import subby
-
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "WARNING"))
 
@@ -372,3 +371,88 @@ def test_readme_examples():
 
     # The `output` property provides the output of the command
     assert p1.output == p2.output == p3.output == "1"
+
+
+# --- Additional coverage for previously-untested branches ---
+
+
+def test_version_exposed():
+    # __version__ is resolved via importlib.metadata and is a non-empty string.
+    assert isinstance(subby.__version__, str)
+    assert subby.__version__
+
+
+def test_run_empty_list_raises():
+    # An empty sequence of commands is invalid.
+    with pytest.raises(ValueError):
+        subby.run([])
+
+
+def test_sub_returns_none_when_no_output_stream():
+    # When stdout is neither PIPE nor BUFFER (here: discarded), sub() returns None
+    # rather than attempting to read output.
+    assert subby.sub("echo hi", stdout=None) is None
+
+
+def test_stdin_stream_before_run_raises():
+    # Accessing stdin_stream before run() is an error.
+    p = subby.Processes([["cat"]], stdin=subby.StdType.PIPE)
+    with pytest.raises(RuntimeError):
+        p.stdin_stream
+
+
+def test_get_all_stderr_without_capture():
+    # With capture_stderr=False, only the final process's (buffered) stderr is
+    # returned; the per-process stderr buffers are not collected.
+    p = subby.run(
+        "echo -n hi | tee /dev/stderr | tee /dev/stderr",
+        capture_stderr=False,
+        stderr=subby.StdType.BUFFER,
+    )
+    assert p.output == "hi"
+    # Only the single final-process stderr entry, not one per piped command.
+    assert p.get_all_stderr() == ["hi"]
+
+
+def test_block_raise_on_error_false_does_not_raise():
+    # A non-zero return code with raise_on_error=False must not raise; instead the
+    # failure is observable via `ok`/`returncode`.
+    p = subby.Processes([["cat", "no_such_file_xyz"]], raise_on_error=False)
+    p.run()
+    p.block()
+    assert not p.ok
+    assert p.returncode != 0
+
+
+def test_block_raise_on_error_arg_overrides():
+    # raise_on_error passed directly to block() takes precedence over the
+    # constructor value (here the constructor would have raised).
+    p = subby.Processes([["cat", "no_such_file_xyz"]], raise_on_error=True)
+    p.run()
+    p.block(raise_on_error=False)
+    assert not p.ok
+
+
+def test_get_all_stderr_capture_with_file_stderr():
+    # capture_stderr=True but the final stderr goes to a file (not a buffer/pipe),
+    # so only the captured per-process buffers are returned.
+    with isolated_dir() as d:
+        stderr_file = d / "stderr"
+        p = subby.run(
+            "echo -n hi | tee /dev/stderr | tee /dev/stderr",
+            stderr=stderr_file,
+        )
+        # The two upstream `tee` processes each wrote "hi" to their stderr buffer;
+        # the final process's stderr went to the file and is excluded here.
+        assert p.get_all_stderr() == ["", "hi"]
+
+
+def test_context_manager_kills_on_exception():
+    # Exiting the context manager via an exception, before the process finishes,
+    # triggers kill()+close() and re-raises the original exception.
+    sentinel = RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        with subby.Processes([["sleep", "5"]]) as p:
+            raise sentinel
+    assert p.closed
+    assert p.returncode != 0

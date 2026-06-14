@@ -1,11 +1,11 @@
-[![Travis CI](https://travis-ci.org/jdidion/subby.svg?branch=master)](https://travis-ci.org/jdidion/subby)
-[![Code Coverage](https://codecov.io/gh/jdidion/subby/branch/master/graph/badge.svg)](https://codecov.io/gh/jdidion/subby)
+[![CI](https://github.com/jdidion/subby/actions/workflows/ci.yml/badge.svg)](https://github.com/jdidion/subby/actions/workflows/ci.yml)
+[![Code Coverage](https://codecov.io/gh/jdidion/subby/branch/main/graph/badge.svg)](https://codecov.io/gh/jdidion/subby)
 
 Subby is a small Python library with the goal of simplifying the use of subprocesses. Subby is similar to [delegator.py](https://github.com/amitt001/delegator.py), but it adds a few additional features and excludes others (e.g. no `pexpect` support).
 
 ## Requirements
 
-The only requirement is python 3.6+. There are no other 3rd-party runtime dependencies. The `pytest` and `coverage` packages are required for testing.
+The only requirement is python 3.10+. There are no other 3rd-party runtime dependencies. The development dependencies (`pytest`, `pytest-cov`, `ruff`) are declared in the `dev` dependency group in `pyproject.toml`.
 
 ## Installation
 

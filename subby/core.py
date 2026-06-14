@@ -3,12 +3,13 @@ import enum
 import errno
 import logging
 import os
-from pathlib import Path
 import subprocess
-from subprocess import CalledProcessError
 import sys
 import tempfile
-from typing import Generic, IO, Optional, Sequence, Tuple, Type, TypeVar, Union, cast
+from collections.abc import Sequence
+from pathlib import Path
+from subprocess import CalledProcessError
+from typing import IO, Generic, TypeVar, cast
 
 from subby.utils import command_lists_to_strings
 
@@ -70,17 +71,17 @@ class Processes(Generic[Mode]):
 
     def __init__(
         self,
-        cmds: Sequence[Union[str, Sequence[str]]],
-        stdin: Optional[Union[Mode, Path, StdType]] = None,
-        stdout: Optional[Union[Path, StdType]] = StdType.PIPE,
-        stderr: Optional[Union[Path, StdType]] = StdType.PIPE,
+        cmds: Sequence[str | Sequence[str]],
+        stdin: Mode | Path | StdType | None = None,
+        stdout: Path | StdType | None = StdType.PIPE,
+        stderr: Path | StdType | None = StdType.PIPE,
         capture_stderr: bool = True,
-        mode: Type[Mode] = str,
+        mode: type[Mode] = str,
         encoding: str = "UTF-8",
         echo: bool = None,
         allowed_return_codes: Sequence[int] = (0,),
-        raise_on_error: Optional[bool] = None,
-        timeout: Optional[int] = None,
+        raise_on_error: bool | None = None,
+        timeout: int | None = None,
         **popen_kwargs,
     ):
         if "universal_newlines" in popen_kwargs:
@@ -156,19 +157,19 @@ class Processes(Generic[Mode]):
     def text_mode(self) -> bool:
         return self._mode is str
 
-    def _init_stdin(self) -> Union[int, IO]:
+    def _init_stdin(self) -> int | IO:
         self._stdin, self._stdin_type, retval = self._init_std(
             self._stdin_arg, sys.stdin, False
         )
         return retval
 
-    def _init_stdout(self) -> Union[int, IO]:
+    def _init_stdout(self) -> int | IO:
         self._stdout, self._stdout_type, retval = self._init_std(
             self._stdout_arg, sys.stdout, True
         )
         return retval
 
-    def _init_stderr(self) -> Union[int, IO]:
+    def _init_stderr(self) -> int | IO:
         self._stderr, self._stderr_type, retval = self._init_std(
             self._stderr_arg, sys.stderr, True
         )
@@ -176,10 +177,10 @@ class Processes(Generic[Mode]):
 
     def _init_std(
         self,
-        value: Optional[Union[Path, StdType, bytes, str]],
+        value: Path | StdType | bytes | str | None,
         sys_stream: IO,
         is_output: bool = True,
-    ) -> Tuple[Optional[IO], StdType, Union[int, IO]]:
+    ) -> tuple[IO | None, StdType, int | IO]:
         """
 
         """
@@ -232,7 +233,7 @@ class Processes(Generic[Mode]):
             self._stderr_buffers.append(handle)
             return handle
 
-    def _open_file(self, path: Union[str, Path], mode: str) -> IO:
+    def _open_file(self, path: str | Path, mode: str) -> IO:
         mode += "t" if self.text_mode else "b"
         return open(path, mode)
 
@@ -420,8 +421,8 @@ class Processes(Generic[Mode]):
     def block(
         self,
         close: bool = True,
-        raise_on_error: Optional[bool] = None,
-        timeout: Optional[int] = None,
+        raise_on_error: bool | None = None,
+        timeout: int | None = None,
     ):
         """
         Wait for all commands to finish.
@@ -520,13 +521,13 @@ class Processes(Generic[Mode]):
         def close_file(handle):
             try:  # TODO: figure out how to test
                 handle.close()
-            except IOError:
+            except OSError:
                 LOG.exception("Error closing output file %s", handle.name)
 
         def remove_file(handle):
             try:
                 os.unlink(handle.name)
-            except IOError:  # TODO: figure out how to test
+            except OSError:  # TODO: figure out how to test
                 LOG.exception("Error removing file %s", handle.name)
 
         if self._stdin_type in {StdType.FILE, StdType.BUFFER}:
@@ -572,15 +573,13 @@ class Processes(Generic[Mode]):
         """
         if self.done and not self.ok:
             sep = "\n" if self.text_mode else b"\n"
-            msg = "stderr from executed commands:\n{}".format(
-                sep.join(self.get_all_stderr())
-            )
+            msg = f"stderr from executed commands:\n{sep.join(self.get_all_stderr())}"
             raise CalledProcessError(self.returncode, str(self), output=msg)
 
     def __str__(self) -> str:
         cmd_str = " | ".join(command_lists_to_strings(self.cmds))
         if self._stdout_type == StdType.FILE:
-            cmd_str += " > {}".format(self._stdout.name)
+            cmd_str += f" > {self._stdout.name}"
         return cmd_str
 
     def __enter__(self) -> "Processes":

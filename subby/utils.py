@@ -1,5 +1,5 @@
 import shlex
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 
 def quote_args(seq: Sequence[str]) -> str:
@@ -16,7 +16,7 @@ def quote_args(seq: Sequence[str]) -> str:
 
 
 def command_strings_to_lists(
-    cmds: Sequence[Union[str, Sequence[str]]]
+    cmds: Sequence[str | Sequence[str]]
 ) -> Sequence[Sequence[str]]:
     """
     Convert any command strings in `cmds` to lists.
@@ -31,7 +31,7 @@ def command_strings_to_lists(
 
 
 def command_lists_to_strings(
-    cmds: Sequence[Union[str, Sequence[str]]]
+    cmds: Sequence[str | Sequence[str]]
 ) -> Sequence[str]:
     """
     Convert any command lists in `cmds` to strings.

@@ -2,6 +2,12 @@
 
 ## dev
 
+* Modernize packaging: PEP 621 `pyproject.toml` with the setuptools build backend and setuptools-scm for git-tag-derived versions; manage the project with uv
+* Require Python 3.10+ (drop 3.6-3.9)
+* Expose `subby.__version__` via `importlib.metadata`
+* Replace Travis CI with a GitHub Actions workflow; add ruff lint config
+* Add tests covering previously-untested branches (branch coverage 95.8% to 98.0%)
+
 ## 0.1.7 (2019.12.17)
 
 * Expose `stdin_stream` property on `Process`

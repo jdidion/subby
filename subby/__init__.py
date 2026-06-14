@@ -1,28 +1,49 @@
-from typing import Optional, Sequence, Type, Union
+from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError, version
 
-from subby.core import CalledProcessError, Mode, StdType, Processes
 from subby import utils
+from subby.core import CalledProcessError, Mode, Processes, StdType
+
+try:
+    __version__ = version("subby")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0"
 
 DEFAULT_EXECUTABLE = "/bin/bash"
+
+__all__ = [
+    "CalledProcessError",
+    "Mode",
+    "StdType",
+    "Processes",
+    "utils",
+    "cmd",
+    "sub",
+    "run",
+    "DEFAULT_EXECUTABLE",
+    "__version__",
+]
 
 
 def cmd(
     cmd: Sequence[str],
-    shell: Optional[Union[str, bool]] = False,
-    mode: Type[Mode] = str,
+    shell: str | bool | None = False,
+    mode: type[Mode] = str,
     block: bool = True,
     **kwargs
 ) -> Processes:
     """
-    Run a single (non-piped) command. Convenience method, equivalent to run([cmd], **kwargs).
+    Run a single (non-piped) command. Convenience method, equivalent to
+    run([cmd], **kwargs).
 
     Args:
         cmd: A command specified as a list of strings.
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
-            (which also implies shell=True). If None, the value is auto-detected - `True` if `cmds`
-            is a string otherwise `False. If `true` the command is executed via the default shell
-            (which, according to the `subprocess` docs, is `/bin/sh`).
+            (which also implies shell=True). If None, the value is auto-detected -
+            `True` if `cmds` is a string otherwise `False`. If `true` the command is
+            executed via the default shell (which, according to the `subprocess`
+            docs, is `/bin/sh`).
         mode: I/O mode; can be str (text) or bytes (raw).
         block: Whether to block until all processes have completed.
         kwargs: Additional keyword arguments to pass to :class:`Processes`
@@ -35,8 +56,8 @@ def cmd(
 
 
 def sub(
-    cmds: Union[str, Sequence[Union[str, Sequence[str]]]], **kwargs
-) -> Optional[str]:
+    cmds: str | Sequence[str | Sequence[str]], **kwargs
+) -> str | None:
     """
     Convenience method, equivalent to run(cmds, mode=str, block=True, **kwargs).
 
@@ -49,7 +70,7 @@ def sub(
     """
     if not kwargs.get("block", True):
         raise ValueError("Must call sub() with block=True")
-    if not kwargs.get("mode", str) is str:
+    if kwargs.get("mode", str) is not str:
         raise ValueError("Must call sub() with mode=str")
     p = run(cmds, **kwargs)
     if p.stdout_type in {StdType.BUFFER, StdType.PIPE}:
@@ -57,9 +78,9 @@ def sub(
 
 
 def run(
-    cmds: Union[str, Sequence[Union[str, Sequence[str]]]],
-    shell: Optional[Union[str, bool]] = None,
-    mode: Type[Mode] = str,
+    cmds: str | Sequence[str | Sequence[str]],
+    shell: str | bool | None = None,
+    mode: type[Mode] = str,
     block: bool = True,
     **kwargs
 ) -> Processes:
@@ -72,9 +93,10 @@ def run(
             get the component commands.
         shell: Can be a boolean specifying whether to execute the command
             using the shell, or a string value specifying the shell executable to use
-            (which also implies shell=True). If None, the value is auto-detected - `True` if `cmds`
-            is a string otherwise `False. If `true` the command is executed via the default shell
-            (which, according to the `subprocess` docs, is `/bin/sh`).
+            (which also implies shell=True). If None, the value is auto-detected -
+            `True` if `cmds` is a string otherwise `False`. If `true` the command is
+            executed via the default shell (which, according to the `subprocess`
+            docs, is `/bin/sh`).
         mode: I/O mode; can be str (text) or bytes (raw).
         block: Whether to block until all processes have completed.
         kwargs: Additional keyword arguments to pass to :class:`Processes`

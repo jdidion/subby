@@ -1,55 +1,30 @@
 module = subby
-version = 0.1.7
-repo = jdidion/$(module)
-desc = Release $(version)
 tests = tests
-pytestopts = -s -vv --show-capture=all
+
+.PHONY: all install test lint format build clean
 
 all: clean install test
 
-install: clean
-	poetry build
-	pip install --upgrade dist/$(module)-$(version)-py3-none-any.whl $(installargs)
+install:
+	uv sync
 
 test:
-	env PYTHONPATH="." coverage run -m pytest -p pytester $(pytestopts) $(tests)
-	coverage report -m
-	coverage xml
-
-docs:
-	make -C docs api
-	make -C docs html
+	uv run pytest --cov --cov-report=term-missing --cov-report=xml $(tests)
 
 lint:
-	pylint $(module)
+	uv run ruff check $(module) $(tests)
+
+format:
+	uv run ruff format $(module) $(tests)
+
+build: clean
+	uv build
 
 clean:
-	rm -Rf __pycache__
-	rm -Rf **/__pycache__/*
-	rm -Rf **/*.c
-	rm -Rf **/*.so
-	rm -Rf **/*.pyc
-	rm -Rf dist
-	rm -Rf build
-	rm -Rf $(module).egg-info
+	rm -Rf dist build $(module).egg-info
+	rm -Rf .pytest_cache .ruff_cache
+	find . -name '__pycache__' -type d -prune -exec rm -Rf {} +
 
-tag:
-	git tag $(version)
-
-push_tag:
-	git push origin --tags
-
-del_tag:
-	git tag -d $(version)
-
-pypi_release:
-	poetry publish
-
-release: clean tag
-	${MAKE} install test pypi_release push_tag || (${MAKE} del_tag && exit 1)
-
-	curl -v -i -X POST \
-		-H "Content-Type:application/json" \
-		-H "Authorization: token $(token)" \
-		https://api.github.com/repos/$(repo)/releases \
-		-d '{"tag_name":"$(version)","target_commitish": "master","name": "$(version)","body": "$(desc)","draft": false,"prerelease": false}'
+# Release is driven by tagging: setuptools-scm derives the version from the
+# git tag, so cut a release by tagging and pushing the tag, then `uv build`
+# and `uv publish`. These steps touch shared state and are run by a human.
